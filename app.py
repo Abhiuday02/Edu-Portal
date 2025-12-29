@@ -1,16 +1,67 @@
-from flask import Flask, g, render_template, request, redirect, url_for, render_template_string
+from flask import Flask, g, render_template, request, redirect, url_for, render_template_string, session
 from datetime import datetime
 from pathlib import Path
 import os
 import sqlite3
 import calendar
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
 
 app = Flask(__name__)
 
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
 
 DB_PATH = Path(__file__).with_name("eduportal.db")
+
+
+def get_current_student_id() -> int | None:
+    sid = session.get("student_id")
+    if sid is None:
+        return None
+    try:
+        return int(sid)
+    except Exception:
+        return None
+
+
+def login_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if get_current_student_id() is None:
+            return redirect(url_for("login"))
+        return fn(*args, **kwargs)
+
+    return wrapper
+
+
+def ensure_students_password_column(db: sqlite3.Connection) -> None:
+    cols = {row[1] for row in db.execute("PRAGMA table_info(students)").fetchall()}
+    if "password_hash" not in cols:
+        db.execute("ALTER TABLE students ADD COLUMN password_hash TEXT")
+
+
+def seed_attendance_for_student(db: sqlite3.Connection, student_id: int) -> None:
+    existing = db.execute(
+        "SELECT COUNT(*) FROM attendance_heatmap WHERE student_id = ?",
+        (int(student_id),),
+    ).fetchone()[0]
+    if int(existing) > 0:
+        return
+    today = datetime.now().date()
+    start = today.toordinal() - (7 * 28) + 1
+    rows = []
+    for i in range(7 * 28):
+        d = datetime.fromordinal(start + i).date().isoformat()
+        lvl = (i * 3 + int(student_id)) % 5
+        rows.append((int(student_id), d, int(lvl)))
+    db.executemany(
+        """
+        INSERT INTO attendance_heatmap (student_id, att_date, level)
+        VALUES (?, ?, ?)
+        """,
+        rows,
+    )
 
 @app.template_filter("fmt_dt")
 def fmt_dt(value: str) -> str:
@@ -317,29 +368,108 @@ def init_db() -> None:
         )
 
         # Seed dummy data if empty
-        students_count = db.execute("SELECT COUNT(*) FROM students").fetchone()[0]
-        if students_count == 0:
+        student_cols = {row[1] for row in db.execute("PRAGMA table_info(students)").fetchall()}
+        if "password_hash" not in student_cols:
+            db.execute("ALTER TABLE students ADD COLUMN password_hash TEXT")
+
+        default_password = "student123"
+        dummy_students = [
+            {
+                "id": 1,
+                "name": "Alex Johnson",
+                "roll_no": "CS-2024-042",
+                "email": "alex.johnson@institute.edu",
+                "phone": "+91 98765 43210",
+                "guardian": "Robert Johnson (Father)",
+                "residential_status": "Hosteler (Block B, Rm 302)",
+                "program": "B.Tech in Computer Science and Engineering",
+                "year": 2,
+                "sem": 4,
+                "attendance_percent": 82,
+                "next_class": "Physics Lab @ 2PM",
+            },
+            {
+                "id": 2,
+                "name": "Priya Sharma",
+                "roll_no": "CS-2024-043",
+                "email": "priya.sharma@institute.edu",
+                "phone": "+91 98765 43211",
+                "guardian": "Anil Sharma (Father)",
+                "residential_status": "Day Scholar",
+                "program": "B.Tech in Computer Science and Engineering",
+                "year": 2,
+                "sem": 4,
+                "attendance_percent": 91,
+                "next_class": "Discrete Math @ 10:15 AM",
+            },
+            {
+                "id": 3,
+                "name": "Rohan Verma",
+                "roll_no": "CS-2024-044",
+                "email": "rohan.verma@institute.edu",
+                "phone": "+91 98765 43212",
+                "guardian": "Sunita Verma (Mother)",
+                "residential_status": "Hosteler (Block A, Rm 110)",
+                "program": "B.Tech in Computer Science and Engineering",
+                "year": 2,
+                "sem": 4,
+                "attendance_percent": 76,
+                "next_class": "Data Structures @ 9AM",
+            },
+            {
+                "id": 4,
+                "name": "Neha Singh",
+                "roll_no": "CS-2024-045",
+                "email": "neha.singh@institute.edu",
+                "phone": "+91 98765 43213",
+                "guardian": "Arvind Singh (Father)",
+                "residential_status": "Day Scholar",
+                "program": "B.Tech in Computer Science and Engineering",
+                "year": 2,
+                "sem": 4,
+                "attendance_percent": 88,
+                "next_class": "Python with Linux Lab @ 11AM",
+            },
+        ]
+
+        for ds in dummy_students:
+            existing = db.execute(
+                "SELECT id FROM students WHERE roll_no = ?",
+                (ds["roll_no"],),
+            ).fetchone()
+            if existing is None:
+                db.execute(
+                    """
+                    INSERT OR IGNORE INTO students (
+                        id, name, roll_no, email, phone, guardian, residential_status,
+                        program, year, sem, attendance_percent, next_class, password_hash
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        ds["id"],
+                        ds["name"],
+                        ds["roll_no"],
+                        ds["email"],
+                        ds["phone"],
+                        ds["guardian"],
+                        ds["residential_status"],
+                        ds["program"],
+                        ds["year"],
+                        ds["sem"],
+                        ds["attendance_percent"],
+                        ds["next_class"],
+                        generate_password_hash(default_password),
+                    ),
+                )
+
+        # Ensure every student has a password_hash
+        missing_pw = db.execute(
+            "SELECT id FROM students WHERE password_hash IS NULL OR TRIM(password_hash) = ''"
+        ).fetchall()
+        for row in missing_pw:
             db.execute(
-                """
-                INSERT INTO students (
-                    id, name, roll_no, email, phone, guardian, residential_status,
-                    program, year, sem, attendance_percent, next_class
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    1,
-                    "Alex Johnson",
-                    "CS-2024-042",
-                    "alex.johnson@institute.edu",
-                    "+91 98765 43210",
-                    "Robert Johnson (Father)",
-                    "Hosteler (Block B, Rm 302)",
-                    "B.Tech in Computer Science and Engineering",
-                    2,
-                    4,
-                    82,
-                    "Physics Lab @ 2PM",
-                ),
+                "UPDATE students SET password_hash = ? WHERE id = ?",
+                (generate_password_hash(default_password), int(row[0])),
             )
 
         tt_count = db.execute("SELECT COUNT(*) FROM weekly_timetable").fetchone()[0]
@@ -362,15 +492,21 @@ def init_db() -> None:
                 ],
             )
 
-        heat_count = db.execute("SELECT COUNT(*) FROM attendance_heatmap").fetchone()[0]
-        if heat_count == 0:
-            today = datetime.now().date()
-            start = today.toordinal() - (7 * 28) + 1
+        today = datetime.now().date()
+        start = today.toordinal() - (7 * 28) + 1
+        student_ids = [r[0] for r in db.execute("SELECT id FROM students ORDER BY id").fetchall()]
+        for sid in student_ids:
+            existing = db.execute(
+                "SELECT COUNT(*) FROM attendance_heatmap WHERE student_id = ?",
+                (int(sid),),
+            ).fetchone()[0]
+            if int(existing) > 0:
+                continue
             rows = []
             for i in range(7 * 28):
                 d = datetime.fromordinal(start + i).date().isoformat()
-                lvl = (i * 3 + 1) % 5
-                rows.append((1, d, int(lvl)))
+                lvl = (i * 3 + sid) % 5
+                rows.append((int(sid), d, int(lvl)))
             db.executemany(
                 """
                 INSERT INTO attendance_heatmap (student_id, att_date, level)
@@ -434,51 +570,67 @@ def init_db() -> None:
                 ],
             )
 
-        details_count = db.execute("SELECT COUNT(*) FROM student_details").fetchone()[0]
-        if details_count == 0:
-            db.execute(
-                """
-                INSERT INTO student_details (student_id, father_name, gender, category, address, exam_roll_number)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    1,
-                    "RAM ASARE CHAUDHARI",
-                    "Male",
-                    "OBC",
-                    "VILLAGE GHOGHARA POST BODARWAR DIST KUSHINAGAR",
-                    "2514670010038",
-                ),
-            )
+        details_seed = {
+            1: ("Robert Johnson", "Male", "GENERAL", "123, Campus Housing, Institute Campus", "CS-2024-042"),
+            2: ("Anil Sharma", "Female", "OBC", "45, City Center, Near Metro", "CS-2024-043"),
+            3: ("Suresh Verma", "Male", "GENERAL", "Block A Hostel, Room 110", "CS-2024-044"),
+            4: ("Arvind Singh", "Female", "SC", "78, Riverside Colony", "CS-2024-045"),
+        }
+        for sid in student_ids:
+            if int(sid) not in details_seed:
+                continue
+            exists = db.execute(
+                "SELECT 1 FROM student_details WHERE student_id = ?",
+                (int(sid),),
+            ).fetchone()
+            if exists is None:
+                father, gender, category, address, exam_roll = details_seed[int(sid)]
+                db.execute(
+                    """
+                    INSERT INTO student_details (student_id, father_name, gender, category, address, exam_roll_number)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (int(sid), father, gender, category, address, exam_roll),
+                )
 
-        profile_count = db.execute("SELECT COUNT(*) FROM student_profile").fetchone()[0]
-        if profile_count == 0:
-            db.execute(
-                """
-                INSERT INTO student_profile (
-                    student_id, status, batch, department, section, address,
-                    emergency_contact_name, emergency_contact_relation, emergency_contact_phone
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    1,
-                    "Active",
-                    "2023-2027",
-                    "Computer Science",
-                    "A",
-                    "123, Campus Housing, Institute Campus",
-                    "Robert Johnson",
-                    "Father",
-                    "+91-98765-12345",
-                ),
-            )
+        profile_seed = {
+            1: ("Active", "2023-2027", "Computer Science", "A", "123, Campus Housing, Institute Campus", "Robert Johnson", "Father", "+91-98765-12345"),
+            2: ("Active", "2023-2027", "Computer Science", "B", "45, City Center, Near Metro", "Anil Sharma", "Father", "+91-98765-22345"),
+            3: ("Active", "2023-2027", "Computer Science", "A", "Block A Hostel, Room 110", "Suresh Verma", "Father", "+91-98765-32345"),
+            4: ("Active", "2023-2027", "Computer Science", "C", "78, Riverside Colony", "Arvind Singh", "Father", "+91-98765-42345"),
+        }
+        for sid in student_ids:
+            if int(sid) not in profile_seed:
+                continue
+            exists = db.execute(
+                "SELECT 1 FROM student_profile WHERE student_id = ?",
+                (int(sid),),
+            ).fetchone()
+            if exists is None:
+                status, batch, dept, section, address, e_name, e_rel, e_phone = profile_seed[int(sid)]
+                db.execute(
+                    """
+                    INSERT INTO student_profile (
+                        student_id, status, batch, department, section, address,
+                        emergency_contact_name, emergency_contact_relation, emergency_contact_phone
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (int(sid), status, batch, dept, section, address, e_name, e_rel, e_phone),
+                )
 
-        dues_count = db.execute("SELECT COUNT(*) FROM student_dues").fetchone()[0]
-        if dues_count == 0:
-            db.execute(
-                "INSERT INTO student_dues (student_id, pending_amount) VALUES (?, ?)",
-                (1, 1500),
-            )
+        dues_seed = {1: 1500, 2: 0, 3: 800, 4: 300}
+        for sid in student_ids:
+            if int(sid) not in dues_seed:
+                continue
+            exists = db.execute(
+                "SELECT 1 FROM student_dues WHERE student_id = ?",
+                (int(sid),),
+            ).fetchone()
+            if exists is None:
+                db.execute(
+                    "INSERT INTO student_dues (student_id, pending_amount) VALUES (?, ?)",
+                    (int(sid), int(dues_seed[int(sid)])),
+                )
 
         program_count = db.execute("SELECT COUNT(*) FROM programs").fetchone()[0]
         if program_count == 0:
@@ -487,12 +639,16 @@ def init_db() -> None:
                 (1, "B.Tech", "IT"),
             )
 
-        student_program_count = db.execute("SELECT COUNT(*) FROM student_programs").fetchone()[0]
-        if student_program_count == 0:
-            db.execute(
-                "INSERT INTO student_programs (student_id, program_id) VALUES (?, ?)",
-                (1, 1),
-            )
+        for sid in student_ids:
+            exists = db.execute(
+                "SELECT 1 FROM student_programs WHERE student_id = ?",
+                (int(sid),),
+            ).fetchone()
+            if exists is None:
+                db.execute(
+                    "INSERT INTO student_programs (student_id, program_id) VALUES (?, ?)",
+                    (int(sid), 1),
+                )
 
         subj_count = db.execute("SELECT COUNT(*) FROM subjects").fetchone()[0]
         if subj_count == 0:
@@ -545,15 +701,17 @@ def init_db() -> None:
 
         enroll_count = db.execute("SELECT COUNT(*) FROM student_subject_enrollments").fetchone()[0]
         if enroll_count == 0:
-            db.execute(
-                """
-                INSERT INTO student_subject_enrollments (student_id, subject_id, session_label)
-                SELECT ?, s.id, ?
-                FROM subjects s
-                WHERE s.program_id = ? AND s.semester = ?
-                """,
-                (1, session_label, 1, student_sem),
-            )
+            student_ids = [r[0] for r in db.execute("SELECT id FROM students ORDER BY id").fetchall()]
+            for sid in student_ids:
+                db.execute(
+                    """
+                    INSERT INTO student_subject_enrollments (student_id, subject_id, session_label)
+                    SELECT ?, s.id, ?
+                    FROM subjects s
+                    WHERE s.program_id = ? AND s.semester = ?
+                    """,
+                    (int(sid), session_label, 1, student_sem),
+                )
 
         tt_count = db.execute("SELECT COUNT(*) FROM exam_timetable").fetchone()[0]
         if tt_count == 0:
@@ -985,14 +1143,195 @@ def init_db() -> None:
 @app.context_processor
 def inject_student():
     db = get_db()
-    student = db.execute("SELECT * FROM students WHERE id = 1").fetchone()
+    sid = get_current_student_id()
+    student = None
+    if sid is not None:
+        student = db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
     return {"student": student}
 
 
+@app.get("/login")
+def login():
+    if get_current_student_id() is not None:
+        return redirect(url_for("dashboard"))
+    return render_template("login.html", error=None)
+
+
+@app.post("/login")
+def login_post():
+    roll_no = (request.form.get("roll_no") or "").strip()
+    password = request.form.get("password") or ""
+    if not roll_no or not password:
+        return render_template("login.html", error="Please enter roll number and password.")
+
+    db = get_db()
+    student = db.execute("SELECT * FROM students WHERE roll_no = ?", (roll_no,)).fetchone()
+    if not student:
+        return render_template("login.html", error="Invalid roll number or password.")
+
+    if not student["password_hash"] or not check_password_hash(student["password_hash"], password):
+        return render_template("login.html", error="Invalid roll number or password.")
+
+    session["student_id"] = int(student["id"])
+    return redirect(url_for("dashboard"))
+
+
+@app.get("/logout")
+def logout():
+    session.pop("student_id", None)
+    return redirect(url_for("login"))
+
+
+@app.get("/register")
+def register():
+    if get_current_student_id() is not None:
+        return redirect(url_for("dashboard"))
+    return render_template("register.html", error=None)
+
+
+@app.post("/register")
+def register_post():
+    form = {k: (request.form.get(k) or "").strip() for k in request.form.keys()}
+
+    required = [
+        "name",
+        "roll_no",
+        "email",
+        "phone",
+        "guardian",
+        "residential_status",
+        "program",
+        "year",
+        "sem",
+        "password",
+        "confirm_password",
+        "father_name",
+        "gender",
+        "category",
+        "address",
+        "batch",
+        "department",
+        "section",
+        "emergency_contact_name",
+        "emergency_contact_relation",
+        "emergency_contact_phone",
+    ]
+    missing = [k for k in required if not form.get(k)]
+    if missing:
+        return render_template("register.html", error="Please fill all required fields.")
+
+    if form["password"] != form["confirm_password"]:
+        return render_template("register.html", error="Passwords do not match.")
+
+    try:
+        year = int(form["year"])
+        sem = int(form["sem"])
+    except Exception:
+        return render_template("register.html", error="Year and semester must be numbers.")
+
+    next_class = form.get("next_class") or ""
+    attendance_percent = form.get("attendance_percent") or ""
+    try:
+        attendance_percent_int = int(attendance_percent) if attendance_percent else 0
+    except Exception:
+        attendance_percent_int = 0
+
+    db = get_db()
+    ensure_students_password_column(db)
+
+    exists = db.execute(
+        "SELECT id FROM students WHERE roll_no = ?",
+        (form["roll_no"],),
+    ).fetchone()
+    if exists is not None:
+        return render_template("register.html", error="Roll number already exists. Please login instead.")
+
+    password_hash = generate_password_hash(form["password"])
+    db.execute(
+        """
+        INSERT INTO students (
+            name, roll_no, email, phone, guardian, residential_status,
+            program, year, sem, attendance_percent, next_class, password_hash
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            form["name"],
+            form["roll_no"],
+            form["email"],
+            form["phone"],
+            form["guardian"],
+            form["residential_status"],
+            form["program"],
+            year,
+            sem,
+            attendance_percent_int,
+            next_class,
+            password_hash,
+        ),
+    )
+    student_id = int(db.execute("SELECT last_insert_rowid()").fetchone()[0])
+
+    exam_roll_number = form.get("exam_roll_number") or form["roll_no"]
+    db.execute(
+        """
+        INSERT INTO student_details (student_id, father_name, gender, category, address, exam_roll_number)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            student_id,
+            form["father_name"],
+            form["gender"],
+            form["category"],
+            form["address"],
+            exam_roll_number,
+        ),
+    )
+
+    db.execute(
+        """
+        INSERT INTO student_profile (
+            student_id, status, batch, department, section, address,
+            emergency_contact_name, emergency_contact_relation, emergency_contact_phone
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            student_id,
+            form.get("status") or "Active",
+            form["batch"],
+            form["department"],
+            form["section"],
+            form["address"],
+            form["emergency_contact_name"],
+            form["emergency_contact_relation"],
+            form["emergency_contact_phone"],
+        ),
+    )
+
+    db.execute(
+        "INSERT INTO student_dues (student_id, pending_amount) VALUES (?, ?)",
+        (student_id, 0),
+    )
+
+    program_row = db.execute("SELECT id FROM programs ORDER BY id ASC LIMIT 1").fetchone()
+    program_id = int(program_row[0]) if program_row else 1
+    db.execute(
+        "INSERT INTO student_programs (student_id, program_id) VALUES (?, ?)",
+        (student_id, program_id),
+    )
+
+    seed_attendance_for_student(db, student_id)
+
+    db.commit()
+    session["student_id"] = student_id
+    return redirect(url_for("dashboard"))
+
+
 @app.get("/")
+@login_required
 def dashboard():
     db = get_db()
-    student = db.execute("SELECT * FROM students WHERE id = 1").fetchone()
+    sid = get_current_student_id()
+    student = db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
 
     heatmap = db.execute(
         """
@@ -1001,7 +1340,7 @@ def dashboard():
         ORDER BY date(att_date) ASC
         LIMIT 196
         """,
-        (1,),
+        (sid,),
     ).fetchall()
     heatmap_levels = [int(r["level"]) for r in heatmap]
 
@@ -1035,6 +1374,7 @@ def dashboard():
 
 
 @app.get("/news")
+@login_required
 def news():
     db = get_db()
 
@@ -1098,6 +1438,7 @@ def news():
 
 
 @app.get("/schedules")
+@login_required
 def schedules():
     db = get_db()
     events = db.execute(
@@ -1207,6 +1548,7 @@ def schedules():
 
 
 @app.get("/library")
+@login_required
 def library():
     db = get_db()
     filters = {
@@ -1252,6 +1594,7 @@ def library():
 
 
 @app.post("/library/resources/upload")
+@login_required
 def library_resource_upload():
     heading = (request.form.get("heading") or "").strip()
     description = (request.form.get("description") or "").strip()
@@ -1293,15 +1636,17 @@ def library_resource_upload():
 
 
 @app.get("/exams")
+@login_required
 def exams():
     db = get_db()
     forms = db.execute(
         "SELECT * FROM exam_forms ORDER BY CASE status WHEN 'OPEN' THEN 0 ELSE 1 END, id DESC"
     ).fetchall()
 
-    student = db.execute("SELECT * FROM students WHERE id = 1").fetchone()
-    details = db.execute("SELECT * FROM student_details WHERE student_id = 1").fetchone()
-    student_program = db.execute("SELECT * FROM student_programs WHERE student_id = 1").fetchone()
+    sid = get_current_student_id()
+    student = db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+    details = db.execute("SELECT * FROM student_details WHERE student_id = ?", (sid,)).fetchone()
+    student_program = db.execute("SELECT * FROM student_programs WHERE student_id = ?", (sid,)).fetchone()
 
     admit_card = None
     admit_subjects = []
@@ -1350,7 +1695,7 @@ def exams():
                 WHERE e.student_id = ? AND e.session_label = ?
                 ORDER BY s.code ASC
                 """,
-                (session["id"], 1, session["session_label"]),
+                (session["id"], sid, session["session_label"]),
             ).fetchall()
 
         semester_result = db.execute(
@@ -1360,7 +1705,7 @@ def exams():
             ORDER BY declared_on DESC
             LIMIT 1
             """,
-            (1, program_id, int(student["sem"])),
+            (sid, program_id, int(student["sem"])),
         ).fetchone()
         if semester_result:
             semester_result_courses = db.execute(
@@ -1390,11 +1735,13 @@ def exams():
 
 
 @app.get("/exams/admit-card/print")
+@login_required
 def exams_admit_print():
     db = get_db()
-    student = db.execute("SELECT * FROM students WHERE id = 1").fetchone()
-    details = db.execute("SELECT * FROM student_details WHERE student_id = 1").fetchone()
-    student_program = db.execute("SELECT * FROM student_programs WHERE student_id = 1").fetchone()
+    sid = get_current_student_id()
+    student = db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+    details = db.execute("SELECT * FROM student_details WHERE student_id = ?", (sid,)).fetchone()
+    student_program = db.execute("SELECT * FROM student_programs WHERE student_id = ?", (sid,)).fetchone()
 
     admit_card = None
     admit_subjects = []
@@ -1439,7 +1786,7 @@ def exams_admit_print():
                 WHERE e.student_id = ? AND e.session_label = ?
                 ORDER BY s.code ASC
                 """,
-                (session["id"], 1, session["session_label"]),
+                (session["id"], sid, session["session_label"]),
             ).fetchall()
 
     return render_template(
@@ -1450,9 +1797,11 @@ def exams_admit_print():
 
 
 @app.get("/exams/result/print")
+@login_required
 def exams_result_print():
     db = get_db()
-    student_program = db.execute("SELECT * FROM student_programs WHERE student_id = 1").fetchone()
+    sid = get_current_student_id()
+    student_program = db.execute("SELECT * FROM student_programs WHERE student_id = ?", (sid,)).fetchone()
     semester_result = None
     semester_result_courses = []
     if student_program:
@@ -1464,7 +1813,7 @@ def exams_result_print():
             ORDER BY declared_on DESC
             LIMIT 1
             """,
-            (1, program_id),
+            (sid, program_id),
         ).fetchone()
         if semester_result:
             semester_result_courses = db.execute(
@@ -1484,17 +1833,19 @@ def exams_result_print():
 
 
 @app.get("/profile")
+@login_required
 def profile():
     db = get_db()
-    student = db.execute("SELECT * FROM students WHERE id = 1").fetchone()
+    sid = get_current_student_id()
+    student = db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
 
-    student_program = db.execute("SELECT * FROM student_programs WHERE student_id = 1").fetchone()
+    student_program = db.execute("SELECT * FROM student_programs WHERE student_id = ?", (sid,)).fetchone()
     program = None
     if student_program:
         program = db.execute("SELECT * FROM programs WHERE id = ?", (int(student_program["program_id"]),)).fetchone()
 
-    profile = db.execute("SELECT * FROM student_profile WHERE student_id = 1").fetchone()
-    dues = db.execute("SELECT * FROM student_dues WHERE student_id = 1").fetchone()
+    profile = db.execute("SELECT * FROM student_profile WHERE student_id = ?", (sid,)).fetchone()
+    dues = db.execute("SELECT * FROM student_dues WHERE student_id = ?", (sid,)).fetchone()
     issued_books = db.execute(
         "SELECT COUNT(*) FROM library_books WHERE status = 'ISSUED'"
     ).fetchone()[0]
@@ -1508,7 +1859,7 @@ def profile():
             ORDER BY declared_on DESC
             LIMIT 1
             """,
-            (1, int(student_program["program_id"])),
+            (sid, int(student_program["program_id"])),
         ).fetchone()
         if latest:
             cgpa = float(latest["sgpa"])
@@ -1529,6 +1880,7 @@ def profile():
 
 
 @app.get("/administration")
+@login_required
 def administration():
     return render_template_string(
         """
@@ -1555,6 +1907,7 @@ def administration():
 
 
 @app.get("/fee-payment")
+@login_required
 def fee_payment():
     return render_template_string(
         """
@@ -1587,4 +1940,4 @@ if __name__ == "__main__":
     )
     host = os.getenv("HOST", "127.0.0.1")
     port = int(os.getenv("PORT", "5000"))
-    app.run(host="192.168.31.138", port=port, debug=debug)
+    app.run(host=host, port=port, debug=debug)

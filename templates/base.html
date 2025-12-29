@@ -188,6 +188,25 @@
                 <div>
                     <h1 id="headerTitle" class="text-xl font-semibold text-slate-900">{{ page_title }}</h1>
                     <p id="headerSubtitle" class="text-xs text-slate-500"{% if active_page == 'dashboard' %} data-autodate="true"{% endif %}>{{ page_subtitle }}</p>
+                    <div class="hidden md:flex items-center gap-2 mt-2 text-xs text-slate-500">
+                        <a href="{{ url_for('dashboard') }}" class="hover:text-slate-900">Home</a>
+                        <span class="text-slate-300">/</span>
+                        {% if active_page == 'dashboard' %}
+                            <span class="text-slate-900 font-medium">Dashboard</span>
+                        {% elif active_page == 'news' %}
+                            <a href="{{ url_for('news') }}" class="text-slate-900 font-medium hover:text-slate-900">News</a>
+                        {% elif active_page == 'schedules' %}
+                            <a href="{{ url_for('schedules') }}" class="text-slate-900 font-medium hover:text-slate-900">Schedules</a>
+                        {% elif active_page == 'library' %}
+                            <a href="{{ url_for('library') }}" class="text-slate-900 font-medium hover:text-slate-900">Library</a>
+                        {% elif active_page == 'exams' %}
+                            <a href="{{ url_for('exams') }}" class="text-slate-900 font-medium hover:text-slate-900">Exams</a>
+                        {% elif active_page == 'profile' %}
+                            <a href="{{ url_for('profile') }}" class="text-slate-900 font-medium hover:text-slate-900">Profile</a>
+                        {% else %}
+                            <span class="text-slate-900 font-medium">{{ page_title }}</span>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
             <div class="flex items-center gap-3">

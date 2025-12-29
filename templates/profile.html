@@ -17,7 +17,10 @@
                     </div>
                 </div>
             </div>
-            <button class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all">Edit Profile</button>
+            <div class="flex items-center gap-2">
+                <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all">Logout</a>
+                <button class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all">Edit Profile</button>
+            </div>
         </div>
     </div>
 
