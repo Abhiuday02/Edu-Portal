@@ -29,7 +29,7 @@
             </div>
 
             <div class="p-5 max-h-[75vh] overflow-y-auto">
-                <form method="post" action="{{ url_for('admin_news_create') }}" class="space-y-4">
+                <form method="post" action="{{ url_for('admin_news_create') }}" enctype="multipart/form-data" class="space-y-4" data-news-new-form>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Priority</label>
@@ -53,7 +53,26 @@
 
                     <div>
                         <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Body</label>
-                        <textarea name="body" rows="6" placeholder="Write announcement..." class="admin-input w-full" required></textarea>
+                        <input type="hidden" name="body_html" value="" data-news-new-body-html>
+                        <div class="rounded-xl border border-slate-200 overflow-hidden">
+                            <div class="flex flex-wrap items-center gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200">
+                                <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-cmd="bold">B</button>
+                                <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-cmd="italic">I</button>
+                                <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-cmd="strikeThrough">S</button>
+                                <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-cmd="formatBlock" data-rte-arg="pre">Code</button>
+                                <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-cmd="insertUnorderedList">• List</button>
+                                <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-cmd="insertOrderedList">1. List</button>
+                                <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-cmd="removeFormat">Clear formatting</button>
+                            </div>
+                            <div contenteditable="true" class="p-3 text-sm min-h-[140px] focus:outline-none" data-news-new-editor></div>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-2">Tip: Use the toolbar to format. Links can be pasted; unsafe HTML is cleaned automatically.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Attachment (optional)</label>
+                        <input type="file" name="attachment" class="admin-input w-full" />
+                        <p class="text-xs text-slate-500 mt-2">Images will preview inline for students. PDFs/docs open in a new tab.</p>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -94,7 +113,7 @@
             </div>
 
             <div class="p-5 max-h-[75vh] overflow-y-auto">
-                <form method="post" action="" class="space-y-4" data-admin-news-edit-form>
+                <form method="post" action="" enctype="multipart/form-data" class="space-y-4" data-admin-news-edit-form>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Priority</label>
@@ -118,7 +137,24 @@
 
                     <div>
                         <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Body</label>
-                        <textarea name="body" rows="6" placeholder="Write announcement..." class="admin-input w-full" required data-admin-news-edit-body></textarea>
+                        <input type="hidden" name="body_html" value="" data-admin-news-edit-body-html>
+                        <div class="rounded-xl border border-slate-200 overflow-hidden">
+                            <div class="flex flex-wrap items-center gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200">
+                                <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-edit-cmd="bold">B</button>
+                                <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-edit-cmd="italic">I</button>
+                                <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-edit-cmd="strikeThrough">S</button>
+                                <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-edit-cmd="formatBlock" data-rte-edit-arg="pre">Code</button>
+                                <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-edit-cmd="insertUnorderedList">• List</button>
+                                <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-edit-cmd="insertOrderedList">1. List</button>
+                                <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-edit-cmd="removeFormat">Clear formatting</button>
+                            </div>
+                            <div contenteditable="true" class="p-3 text-sm min-h-[140px] focus:outline-none" data-admin-news-edit-editor></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Replace Attachment (optional)</label>
+                        <input type="file" name="attachment" class="admin-input w-full" />
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -364,11 +400,12 @@
         const priority = document.querySelector('[data-admin-news-edit-priority]');
         const type = document.querySelector('[data-admin-news-edit-type]');
         const heading = document.querySelector('[data-admin-news-edit-heading]');
-        const body = document.querySelector('[data-admin-news-edit-body]');
+        const body = document.querySelector('[data-admin-news-edit-editor]');
+        const bodyHtml = document.querySelector('[data-admin-news-edit-body-html]');
         const sender = document.querySelector('[data-admin-news-edit-sender]');
         const tags = document.querySelector('[data-admin-news-edit-tags]');
 
-        if (!openBtns.length || !closeBtn || !backdrop || !sheet || !form || !priority || !type || !heading || !body || !sender || !tags) {
+        if (!openBtns.length || !closeBtn || !backdrop || !sheet || !form || !priority || !type || !heading || !body || !bodyHtml || !sender || !tags) {
             return;
         }
 
@@ -421,7 +458,7 @@
                 priority.value = (btn.dataset.priority || 'NORMAL').toUpperCase();
                 type.value = btn.dataset.newsType || '';
                 heading.value = btn.dataset.heading || '';
-                body.value = btn.dataset.body || '';
+                body.innerHTML = btn.dataset.body || '';
                 sender.value = btn.dataset.sender || '';
                 tags.value = btn.dataset.tags || '';
                 open();
@@ -494,6 +531,89 @@
             window.addEventListener('mousemove', onMove);
             window.addEventListener('mouseup', onEnd);
         }
+    })();
+
+    (function () {
+        const newForm = document.querySelector('[data-news-new-form]');
+        const newEditor = document.querySelector('[data-news-new-editor]');
+        const newBodyHtml = document.querySelector('[data-news-new-body-html]');
+        const editForm = document.querySelector('[data-admin-news-edit-form]');
+        const editEditor = document.querySelector('[data-admin-news-edit-editor]');
+        const editBodyHtml = document.querySelector('[data-admin-news-edit-body-html]');
+
+        function makeSelectionKeeper(editorEl) {
+            let lastRange = null;
+            function save() {
+                const sel = window.getSelection && window.getSelection();
+                if (!sel || sel.rangeCount === 0) {
+                    return;
+                }
+                const r = sel.getRangeAt(0);
+                if (!editorEl.contains(r.commonAncestorContainer)) {
+                    return;
+                }
+                lastRange = r;
+            }
+
+            function restore() {
+                if (!lastRange) {
+                    return;
+                }
+                const sel = window.getSelection && window.getSelection();
+                if (!sel) {
+                    return;
+                }
+                sel.removeAllRanges();
+                sel.addRange(lastRange);
+            }
+
+            editorEl.addEventListener('keyup', save);
+            editorEl.addEventListener('mouseup', save);
+            editorEl.addEventListener('touchend', save);
+            editorEl.addEventListener('focus', save);
+
+            return { save, restore };
+        }
+
+        function bindToolbar(scopeEl, cmdAttr, argAttr, editorEl, keeper) {
+            if (!scopeEl || !editorEl || !keeper) {
+                return;
+            }
+            scopeEl.querySelectorAll(`[${cmdAttr}]`).forEach((btn) => {
+                btn.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                });
+                btn.addEventListener('click', () => {
+                    const cmd = btn.getAttribute(cmdAttr);
+                    const arg = argAttr ? btn.getAttribute(argAttr) : null;
+                    editorEl.focus();
+                    keeper.restore();
+                    if (cmd === 'formatBlock' && arg) {
+                        document.execCommand(cmd, false, arg);
+                    } else {
+                        document.execCommand(cmd, false, null);
+                    }
+                    keeper.save();
+                });
+            });
+        }
+
+        const newKeeper = newEditor ? makeSelectionKeeper(newEditor) : null;
+        const editKeeper = editEditor ? makeSelectionKeeper(editEditor) : null;
+        bindToolbar(document, 'data-rte-cmd', 'data-rte-arg', newEditor, newKeeper);
+        bindToolbar(document, 'data-rte-edit-cmd', 'data-rte-edit-arg', editEditor, editKeeper);
+
+        function sync(formEl, editorEl, hiddenEl) {
+            if (!formEl || !editorEl || !hiddenEl) {
+                return;
+            }
+            formEl.addEventListener('submit', () => {
+                hiddenEl.value = (editorEl.innerHTML || '').trim();
+            });
+        }
+
+        sync(newForm, newEditor, newBodyHtml);
+        sync(editForm, editEditor, editBodyHtml);
     })();
 </script>
 {% endblock %}

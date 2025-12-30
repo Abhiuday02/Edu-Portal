@@ -5,6 +5,7 @@ import os
 import sqlite3
 import calendar
 from urllib.parse import quote
+import uuid
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -15,6 +16,97 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
 
 DB_PATH = Path(__file__).with_name("eduportal.db")
+
+NEWS_UPLOAD_DIR = Path(__file__).with_name("static") / "uploads" / "news"
+
+
+def save_news_attachment(upload) -> tuple[str, str, str] | None:
+    if upload is None:
+        return None
+    original = (upload.filename or "").strip()
+    if not original:
+        return None
+    NEWS_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+    safe = secure_filename(original)
+    if not safe:
+        return None
+    unique = f"{uuid.uuid4().hex}_{safe}"
+    abs_path = NEWS_UPLOAD_DIR / unique
+    upload.save(abs_path)
+
+    rel_path = f"uploads/news/{unique}"
+    mime = (getattr(upload, "mimetype", None) or "").strip()
+    return (rel_path, original, mime)
+
+
+def ensure_news_posts_rich_schema(db: sqlite3.Connection) -> None:
+    cols = {row[1] for row in db.execute("PRAGMA table_info(news_posts)").fetchall()}
+    if "body_is_html" not in cols:
+        db.execute("ALTER TABLE news_posts ADD COLUMN body_is_html INTEGER NOT NULL DEFAULT 0")
+    if "attachment_path" not in cols:
+        db.execute("ALTER TABLE news_posts ADD COLUMN attachment_path TEXT")
+    if "attachment_name" not in cols:
+        db.execute("ALTER TABLE news_posts ADD COLUMN attachment_name TEXT")
+    if "attachment_mime" not in cols:
+        db.execute("ALTER TABLE news_posts ADD COLUMN attachment_mime TEXT")
+
+
+def sanitize_news_html(html: str) -> str:
+    # Allow a small, safe subset of HTML for news bodies.
+    if not html:
+        return ""
+
+    # Remove script/style blocks
+    cleaned = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.I | re.S)
+    # Remove on* handlers
+    cleaned = re.sub(r"\son\w+\s*=\s*\"[^\"]*\"", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\son\w+\s*=\s*'[^']*'", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\son\w+\s*=\s*[^\s>]+", "", cleaned, flags=re.I)
+    # Block javascript: URLs
+    cleaned = re.sub(r"(href|src)\s*=\s*\"\s*javascript:[^\"]*\"", r"\1=\"#\"", cleaned, flags=re.I)
+    cleaned = re.sub(r"(href|src)\s*=\s*'\s*javascript:[^']*'", r"\1='#'", cleaned, flags=re.I)
+
+    allowed = {
+        "b",
+        "strong",
+        "i",
+        "em",
+        "u",
+        "s",
+        "del",
+        "code",
+        "pre",
+        "br",
+        "p",
+        "ul",
+        "ol",
+        "li",
+        "a",
+        "span",
+        "div",
+    }
+
+    def _filter_tag(match: re.Match) -> str:
+        tag = match.group(0)
+        name = match.group(1) or ""
+        n = name.strip().lower()
+        if n not in allowed:
+            return ""
+        if n == "a":
+            href = re.search(r"href\s*=\s*(['\"])(.*?)\1", tag, flags=re.I)
+            href_val = href.group(2) if href else "#"
+            if href_val.strip().lower().startswith("javascript:"):
+                href_val = "#"
+            return f'<a href="{href_val}" target="_blank" rel="noopener noreferrer">'
+        if tag.startswith("</"):
+            return f"</{n}>"
+        if n in {"span", "div", "p", "pre", "code", "ul", "ol", "li", "strong", "b", "em", "i", "u", "s", "del", "br"}:
+            return f"<{n}>" if n != "br" else "<br>"
+        return f"<{n}>"
+
+    cleaned = re.sub(r"</?\s*([a-zA-Z0-9]+)(\s[^>]*)?>", _filter_tag, cleaned)
+    return cleaned.strip()
 
 
 def get_current_student_id() -> int | None:
@@ -603,6 +695,7 @@ def init_db() -> None:
         ensure_schedule_schema(db)
         ensure_exam_forms_link_schema(db)
         ensure_admit_card_openings_schema(db)
+        ensure_news_posts_rich_schema(db)
 
         default_password = "student123"
         dummy_students = [
@@ -2051,10 +2144,15 @@ def admin_news_new():
 def admin_news_create():
     priority = (request.form.get("priority") or "").strip().upper() or "NORMAL"
     heading = (request.form.get("heading") or "").strip()
-    body = (request.form.get("body") or "").strip()
+    body_html_raw = (request.form.get("body_html") or "").strip()
+    body_plain = (request.form.get("body") or "").strip()
     sender = (request.form.get("sender") or "").strip()
     news_type = (request.form.get("news_type") or "").strip()
     tags = (request.form.get("tags") or "").strip()
+
+    body_is_html = 1 if body_html_raw else 0
+    body = sanitize_news_html(body_html_raw) if body_is_html else body_plain
+
     if not heading or not body or not sender or not news_type:
         return render_template(
             "admin_news_form.html",
@@ -2066,12 +2164,32 @@ def admin_news_create():
         )
     db = get_db()
     now = datetime.utcnow().isoformat(timespec="seconds")
+
+    attachment = save_news_attachment(request.files.get("attachment"))
+    attachment_path = attachment[0] if attachment else None
+    attachment_name = attachment[1] if attachment else None
+    attachment_mime = attachment[2] if attachment else None
     db.execute(
         """
-        INSERT INTO news_posts (priority, date_time, heading, body, sender, news_type, tags)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO news_posts (
+            priority, date_time, heading, body, sender, news_type, tags,
+            body_is_html, attachment_path, attachment_name, attachment_mime
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (priority, now, heading, body, sender, news_type, tags),
+        (
+            priority,
+            now,
+            heading,
+            body,
+            sender,
+            news_type,
+            tags,
+            int(body_is_html),
+            attachment_path,
+            attachment_name,
+            attachment_mime,
+        ),
     )
     db.commit()
     return redirect(url_for("admin_news_list"))
@@ -2099,10 +2217,15 @@ def admin_news_edit(post_id: int):
 def admin_news_update(post_id: int):
     priority = (request.form.get("priority") or "").strip().upper() or "NORMAL"
     heading = (request.form.get("heading") or "").strip()
-    body = (request.form.get("body") or "").strip()
+    body_html_raw = (request.form.get("body_html") or "").strip()
+    body_plain = (request.form.get("body") or "").strip()
     sender = (request.form.get("sender") or "").strip()
     news_type = (request.form.get("news_type") or "").strip()
     tags = (request.form.get("tags") or "").strip()
+
+    body_is_html = 1 if body_html_raw else 0
+    body = sanitize_news_html(body_html_raw) if body_is_html else body_plain
+
     if not heading or not body or not sender or not news_type:
         db = get_db()
         post = db.execute("SELECT * FROM news_posts WHERE id = ?", (int(post_id),)).fetchone()
@@ -2115,14 +2238,52 @@ def admin_news_update(post_id: int):
             error="Please fill all required fields.",
         )
     db = get_db()
-    db.execute(
-        """
-        UPDATE news_posts
-        SET priority = ?, heading = ?, body = ?, sender = ?, news_type = ?, tags = ?
-        WHERE id = ?
-        """,
-        (priority, heading, body, sender, news_type, tags, int(post_id)),
-    )
+
+    attachment = save_news_attachment(request.files.get("attachment"))
+    attachment_path = attachment[0] if attachment else None
+    attachment_name = attachment[1] if attachment else None
+    attachment_mime = attachment[2] if attachment else None
+
+    if attachment:
+        db.execute(
+            """
+            UPDATE news_posts
+            SET priority = ?, heading = ?, body = ?, sender = ?, news_type = ?, tags = ?,
+                body_is_html = ?, attachment_path = ?, attachment_name = ?, attachment_mime = ?
+            WHERE id = ?
+            """,
+            (
+                priority,
+                heading,
+                body,
+                sender,
+                news_type,
+                tags,
+                int(body_is_html),
+                attachment_path,
+                attachment_name,
+                attachment_mime,
+                int(post_id),
+            ),
+        )
+    else:
+        db.execute(
+            """
+            UPDATE news_posts
+            SET priority = ?, heading = ?, body = ?, sender = ?, news_type = ?, tags = ?, body_is_html = ?
+            WHERE id = ?
+            """,
+            (
+                priority,
+                heading,
+                body,
+                sender,
+                news_type,
+                tags,
+                int(body_is_html),
+                int(post_id),
+            ),
+        )
     db.commit()
     return redirect(url_for("admin_news_list"))
 
