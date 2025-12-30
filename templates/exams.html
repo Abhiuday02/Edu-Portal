@@ -19,7 +19,7 @@
                 <span class="minimal-badge bg-indigo-50 text-indigo-700">FORMS</span>
             </div>
 
-            <div class="space-y-4">
+            <div class="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
                 {% if forms %}
                     {% for f in forms %}
                         {% set is_open = f.is_open %}
@@ -65,14 +65,44 @@
             </div>
 
             {% if admit_card_link %}
-                <div class="p-6 rounded-xl border border-slate-200 bg-white">
-                    <p class="text-sm text-slate-600">Your admit card is provided via an external link set by the admin.</p>
+                <div class="p-6 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-white">
+                    <p class="text-sm text-slate-700">Your admit card link is currently open.</p>
                     <div class="mt-4 flex justify-end">
                         <a href="{{ admit_card_link }}" target="_blank" rel="noopener" class="px-4 py-2 rounded-xl bg-amber-500 text-white hover:bg-amber-600 text-sm font-medium transition-all">Open Admit Card</a>
                     </div>
                 </div>
-            {% else %}
-                <div class="p-6 rounded-xl border border-slate-200 bg-white text-sm text-slate-500">No admit card available.</div>
+            {% endif %}
+
+            {% if admit_openings %}
+                <div class="mt-4 space-y-3">
+                    {% for o in admit_openings %}
+                        {% set is_open = o.is_open %}
+                        <div class="p-4 rounded-xl border {% if is_open %}border-emerald-200 bg-gradient-to-r from-emerald-50 to-white{% else %}border-slate-200 bg-white{% endif %}">
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <span class="minimal-badge {% if is_open %}bg-emerald-100 text-emerald-700{% else %}bg-slate-100 text-slate-700{% endif %}">{{ o.computed_status }}</span>
+                                        <span class="text-xs text-slate-400">{{ o.semester_label }}</span>
+                                    </div>
+                                    <p class="text-sm font-semibold text-slate-900">{{ o.title }}</p>
+                                    <p class="text-xs text-slate-500 mt-1">{% if o.open_from and o.open_to %}Open: {{ o.open_from }} to {{ o.open_to }}{% else %}Dates not announced{% endif %}</p>
+                                    {% if o.note %}
+                                        <p class="text-xs text-slate-400 mt-2">{{ o.note }}</p>
+                                    {% endif %}
+                                </div>
+                                {% if is_open and o.resolved_url %}
+                                    <a href="{{ o.resolved_url }}" target="_blank" rel="noopener" class="px-4 py-2 rounded-xl bg-amber-500 text-white hover:bg-amber-600 text-sm font-medium transition-all">Open</a>
+                                {% elif is_open %}
+                                    <button type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-400 cursor-not-allowed text-sm font-medium transition-all">Link Missing</button>
+                                {% else %}
+                                    <button type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-400 cursor-not-allowed text-sm font-medium transition-all">Closed</button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% elif not admit_card_link %}
+                <div class="p-6 rounded-xl border border-slate-200 bg-white text-sm text-slate-500">No admit card openings available.</div>
             {% endif %}
         </div>
     </div>

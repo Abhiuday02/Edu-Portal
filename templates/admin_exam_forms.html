@@ -1,10 +1,6 @@
 {% extends "admin_base.html" %}
 
 {% block content %}
-<div class="flex items-center justify-end mb-4">
-    <button type="button" class="admin-btn admin-btn-primary inline-flex items-center gap-2" data-admin-exam-form-new-open><span class="iconify text-base" data-icon="solar:add-square-bold"></span> New Exam Form</button>
-</div>
-
 <div data-admin-exam-form-new-backdrop class="fixed inset-0 bg-slate-900/40 opacity-0 pointer-events-none transition-opacity z-40"></div>
 
 <div data-admin-exam-form-new-sheet class="fixed inset-x-0 bottom-0 translate-y-full opacity-0 pointer-events-none transition-all duration-200 ease-out z-50">
@@ -82,6 +78,161 @@
     </div>
 </div>
 
+<div data-admin-exam-form-edit-backdrop class="fixed inset-0 bg-slate-900/40 opacity-0 pointer-events-none transition-opacity z-40"></div>
+
+<div data-admin-exam-form-edit-sheet class="fixed inset-x-0 bottom-0 translate-y-full opacity-0 pointer-events-none transition-all duration-200 ease-out z-50">
+    <div class="mx-auto max-w-3xl">
+        <div class="admin-card border border-slate-200 bg-white rounded-t-3xl">
+            <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-slate-500">Update</p>
+                    <p class="text-lg font-semibold text-slate-900">Edit Exam Form</p>
+                </div>
+                <button type="button" class="admin-btn admin-btn-soft inline-flex items-center gap-2" data-admin-exam-form-edit-close><span class="iconify text-base text-slate-600" data-icon="solar:close-square-outline"></span> Close</button>
+            </div>
+
+            <div class="px-5 pt-3">
+                <div class="mx-auto h-1.5 w-12 rounded-full bg-slate-200" data-admin-exam-form-edit-handle></div>
+            </div>
+
+            <div class="p-5 max-h-[75vh] overflow-y-auto">
+                <form method="post" action="" class="space-y-4" data-admin-exam-form-edit-form>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Title</label>
+                        <input name="title" type="text" placeholder="e.g. Semester Examination Form" class="admin-input w-full" required data-admin-exam-form-edit-title />
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Apply Link (URL)</label>
+                            <input name="apply_url" type="url" placeholder="https://..." class="admin-input w-full" required data-admin-exam-form-edit-apply-url />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Placeholder Marker</label>
+                            <input name="apply_roll_placeholder" type="text" value="{exam_roll_number}" class="admin-input w-full" data-admin-exam-form-edit-placeholder />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Semester Label</label>
+                            <input name="semester_label" type="text" placeholder="e.g. SEM-4 (2025-26)" class="admin-input w-full" required data-admin-exam-form-edit-semester />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Program (optional)</label>
+                            <input name="program" type="text" placeholder="e.g. B.Tech" class="admin-input w-full" data-admin-exam-form-edit-program />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Open From</label>
+                            <input name="open_from" type="date" class="admin-input w-full" required data-admin-exam-form-edit-open-from />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Open To</label>
+                            <input name="open_to" type="date" class="admin-input w-full" required data-admin-exam-form-edit-open-to />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Department (optional)</label>
+                            <input name="department" type="text" placeholder="e.g. Computer Science" class="admin-input w-full" data-admin-exam-form-edit-department />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Additional Note (optional)</label>
+                            <input name="note" type="text" placeholder="Optional message for students" class="admin-input w-full" data-admin-exam-form-edit-note />
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2 pt-2">
+                        <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> Update</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div data-admin-exams-admit-opening-edit-backdrop class="fixed inset-0 bg-slate-900/40 opacity-0 pointer-events-none transition-opacity z-40"></div>
+
+<div data-admin-exams-admit-opening-edit-sheet class="fixed inset-x-0 bottom-0 translate-y-full opacity-0 pointer-events-none transition-all duration-200 ease-out z-50">
+    <div class="mx-auto max-w-3xl">
+        <div class="admin-card border border-slate-200 bg-white rounded-t-3xl">
+            <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-slate-500">Update</p>
+                    <p class="text-lg font-semibold text-slate-900">Edit Admit Card Opening</p>
+                </div>
+                <button type="button" class="admin-btn admin-btn-soft inline-flex items-center gap-2" data-admin-exams-admit-opening-edit-close><span class="iconify text-base text-slate-600" data-icon="solar:close-square-outline"></span> Close</button>
+            </div>
+
+            <div class="px-5 pt-3">
+                <div class="mx-auto h-1.5 w-12 rounded-full bg-slate-200" data-admin-exams-admit-opening-edit-handle></div>
+            </div>
+
+            <div class="p-5 max-h-[75vh] overflow-y-auto">
+                <form method="post" action="" class="space-y-4" data-admin-exams-admit-opening-edit-form>
+                    <input type="hidden" name="next" value="{{ url_for('admin_exam_forms') }}">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Title</label>
+                        <input name="title" type="text" placeholder="e.g. Admit Card Download" class="admin-input w-full" required data-admin-exams-admit-opening-edit-title />
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Admit Card Link (URL)</label>
+                            <input name="admit_card_url" type="url" placeholder="https://..." class="admin-input w-full" required data-admin-exams-admit-opening-edit-url />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Placeholder Marker</label>
+                            <input name="roll_placeholder" type="text" value="{exam_roll_number}" class="admin-input w-full" data-admin-exams-admit-opening-edit-placeholder />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Semester Label</label>
+                            <input name="semester_label" type="text" placeholder="e.g. SEM-4 (2025-26)" class="admin-input w-full" required data-admin-exams-admit-opening-edit-semester />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Program (optional)</label>
+                            <input name="program" type="text" placeholder="e.g. B.Tech" class="admin-input w-full" data-admin-exams-admit-opening-edit-program />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Open From</label>
+                            <input name="open_from" type="date" class="admin-input w-full" required data-admin-exams-admit-opening-edit-open-from />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Open To</label>
+                            <input name="open_to" type="date" class="admin-input w-full" required data-admin-exams-admit-opening-edit-open-to />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Department (optional)</label>
+                            <input name="department" type="text" placeholder="e.g. Computer Science" class="admin-input w-full" data-admin-exams-admit-opening-edit-department />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Additional Note (optional)</label>
+                            <input name="note" type="text" placeholder="Optional message for students" class="admin-input w-full" data-admin-exams-admit-opening-edit-note />
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2 pt-2">
+                        <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> Update</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div data-admin-exams-admit-opening-new-backdrop class="fixed inset-0 bg-slate-900/40 opacity-0 pointer-events-none transition-opacity z-40"></div>
 
 <div data-admin-exams-admit-opening-new-sheet class="fixed inset-x-0 bottom-0 translate-y-full opacity-0 pointer-events-none transition-all duration-200 ease-out z-50">
@@ -101,6 +252,7 @@
 
             <div class="p-5 max-h-[75vh] overflow-y-auto">
                 <form method="post" action="{{ url_for('admin_admit_card_opening_create') }}" class="space-y-4">
+                    <input type="hidden" name="next" value="{{ url_for('admin_exam_forms') }}">
                     <div>
                         <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Title</label>
                         <input name="title" type="text" placeholder="e.g. Admit Card Download" class="admin-input w-full" required />
@@ -160,6 +312,15 @@
 </div>
 
 <div class="admin-card overflow-hidden">
+    <div class="px-4 py-4 border-b border-slate-200">
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <h3 class="text-base font-semibold text-slate-900">Exam Forms</h3>
+                <p class="text-sm text-slate-500 mt-1">Manage exam application windows</p>
+            </div>
+            <button type="button" class="admin-btn admin-btn-primary inline-flex items-center gap-2" data-admin-exam-form-new-open><span class="iconify text-base" data-icon="solar:add-square-bold"></span> New Exam Form</button>
+        </div>
+    </div>
     <div class="overflow-x-auto">
         <table class="admin-table w-full text-left">
             <thead class="border-b border-slate-200">
@@ -199,9 +360,26 @@
                             </td>
                             <td class="px-4 py-3 text-slate-700">{% if f.open_from and f.open_to %}{{ f.open_from }} → {{ f.open_to }}{% else %}-{% endif %}</td>
                             <td class="px-4 py-3">
-                                <form method="post" action="{{ url_for('admin_exam_form_delete', form_id=f.id) }}" onsubmit="return confirm('Delete this exam form?');">
-                                    <button type="submit" class="admin-btn bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs inline-flex items-center gap-2"><span class="iconify text-sm text-rose-700" data-icon="solar:trash-bin-trash-outline"></span> Delete</button>
-                                </form>
+                                <div class="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        class="admin-btn admin-btn-soft text-xs inline-flex items-center gap-2"
+                                        data-admin-exam-form-edit-open
+                                        data-update-url="{{ url_for('admin_exam_form_update', form_id=f.id) }}"
+                                        data-title="{{ f.title|e }}"
+                                        data-apply-url="{{ (f.apply_url or '')|e }}"
+                                        data-apply-placeholder="{{ (f.apply_roll_placeholder or '{exam_roll_number}')|e }}"
+                                        data-semester-label="{{ (f.semester_label or '')|e }}"
+                                        data-program="{{ (f.program or '')|e }}"
+                                        data-department="{{ (f.department or '')|e }}"
+                                        data-open-from="{{ (f.open_from or '')|e }}"
+                                        data-open-to="{{ (f.open_to or '')|e }}"
+                                        data-note="{{ (f.note or '')|e }}"
+                                    ><span class="iconify text-sm text-amber-600" data-icon="solar:pen-2-outline"></span> Edit</button>
+                                    <form method="post" action="{{ url_for('admin_exam_form_delete', form_id=f.id) }}" onsubmit="return confirm('Delete this exam form?');">
+                                        <button type="submit" class="admin-btn bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs inline-flex items-center gap-2"><span class="iconify text-sm text-rose-700" data-icon="solar:trash-bin-trash-outline"></span> Delete</button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     {% endfor %}
@@ -254,9 +432,28 @@
                             <td class="px-4 py-3 text-slate-700">{% if o.department %}{{ o.department }}{% else %}-{% endif %}</td>
                             <td class="px-4 py-3 text-slate-700">{% if o.open_from and o.open_to %}{{ o.open_from }} → {{ o.open_to }}{% else %}-{% endif %}</td>
                             <td class="px-4 py-3">
+                                <div class="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        class="admin-btn admin-btn-soft text-xs inline-flex items-center gap-2"
+                                        data-admin-exams-admit-opening-edit-open
+                                        data-opening-id="{{ o.id }}"
+                                        data-title="{{ o.title|e }}"
+                                        data-semester-label="{{ o.semester_label|e }}"
+                                        data-open-from="{{ (o.open_from or '')|e }}"
+                                        data-open-to="{{ (o.open_to or '')|e }}"
+                                        data-note="{{ (o.note or '')|e }}"
+                                        data-program="{{ (o.program or '')|e }}"
+                                        data-department="{{ (o.department or '')|e }}"
+                                        data-admit-card-url="{{ (o.admit_card_url or '')|e }}"
+                                        data-roll-placeholder="{{ (o.roll_placeholder or '{exam_roll_number}')|e }}"
+                                        data-update-url="{{ url_for('admin_admit_card_opening_update', opening_id=o.id) }}"
+                                    ><span class="iconify text-sm text-amber-600" data-icon="solar:pen-2-outline"></span> Edit</button>
                                 <form method="post" action="{{ url_for('admin_admit_card_opening_delete', opening_id=o.id) }}" onsubmit="return confirm('Delete this admit card opening?');">
+                                    <input type="hidden" name="next" value="{{ url_for('admin_exam_forms') }}">
                                     <button type="submit" class="admin-btn bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs inline-flex items-center gap-2"><span class="iconify text-sm text-rose-700" data-icon="solar:trash-bin-trash-outline"></span> Delete</button>
                                 </form>
+                                </div>
                             </td>
                         </tr>
                     {% endfor %}
@@ -388,6 +585,243 @@
             window.addEventListener('mousemove', onMove);
             window.addEventListener('mouseup', onEnd);
         }
+    })();
+
+    (function () {
+        const backdrop = document.querySelector('[data-admin-exams-admit-opening-edit-backdrop]');
+        const sheet = document.querySelector('[data-admin-exams-admit-opening-edit-sheet]');
+        const closeBtn = document.querySelector('[data-admin-exams-admit-opening-edit-close]');
+        const handleEl = document.querySelector('[data-admin-exams-admit-opening-edit-handle]');
+        const formEl = document.querySelector('[data-admin-exams-admit-opening-edit-form]');
+
+        const titleEl = document.querySelector('[data-admin-exams-admit-opening-edit-title]');
+        const urlEl = document.querySelector('[data-admin-exams-admit-opening-edit-url]');
+        const placeholderEl = document.querySelector('[data-admin-exams-admit-opening-edit-placeholder]');
+        const semesterEl = document.querySelector('[data-admin-exams-admit-opening-edit-semester]');
+        const programEl = document.querySelector('[data-admin-exams-admit-opening-edit-program]');
+        const openFromEl = document.querySelector('[data-admin-exams-admit-opening-edit-open-from]');
+        const openToEl = document.querySelector('[data-admin-exams-admit-opening-edit-open-to]');
+        const deptEl = document.querySelector('[data-admin-exams-admit-opening-edit-department]');
+        const noteEl = document.querySelector('[data-admin-exams-admit-opening-edit-note]');
+
+        if (!backdrop || !sheet || !closeBtn || !formEl) {
+            return;
+        }
+
+        let scrollLockY = 0;
+        function lockScroll() {
+            scrollLockY = window.scrollY || 0;
+            document.body.style.position = 'fixed';
+            document.body.style.top = `-${scrollLockY}px`;
+            document.body.style.left = '0';
+            document.body.style.right = '0';
+            document.body.style.width = '100%';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function unlockScroll() {
+            document.body.style.position = '';
+            const top = document.body.style.top;
+            document.body.style.top = '';
+            document.body.style.left = '';
+            document.body.style.right = '';
+            document.body.style.width = '';
+            document.body.style.overflow = '';
+            const y = top ? Math.abs(parseInt(top, 10)) : scrollLockY;
+            window.scrollTo(0, Number.isFinite(y) ? y : 0);
+        }
+
+        function open() {
+            lockScroll();
+            backdrop.classList.remove('opacity-0', 'pointer-events-none');
+            backdrop.classList.add('opacity-100');
+            sheet.classList.remove('translate-y-full', 'opacity-0', 'pointer-events-none');
+            sheet.classList.add('opacity-100');
+        }
+
+        function close() {
+            backdrop.classList.add('opacity-0', 'pointer-events-none');
+            backdrop.classList.remove('opacity-100');
+            sheet.classList.add('translate-y-full', 'opacity-0', 'pointer-events-none');
+            sheet.classList.remove('opacity-100');
+            unlockScroll();
+        }
+
+        function setValues(btn) {
+            const action = btn.getAttribute('data-update-url') || '';
+            if (action) {
+                formEl.setAttribute('action', action);
+            }
+
+            if (titleEl) titleEl.value = btn.getAttribute('data-title') || '';
+            if (semesterEl) semesterEl.value = btn.getAttribute('data-semester-label') || '';
+            if (openFromEl) openFromEl.value = btn.getAttribute('data-open-from') || '';
+            if (openToEl) openToEl.value = btn.getAttribute('data-open-to') || '';
+            if (noteEl) noteEl.value = btn.getAttribute('data-note') || '';
+            if (programEl) programEl.value = btn.getAttribute('data-program') || '';
+            if (deptEl) deptEl.value = btn.getAttribute('data-department') || '';
+            if (urlEl) urlEl.value = btn.getAttribute('data-admit-card-url') || '';
+            if (placeholderEl) placeholderEl.value = btn.getAttribute('data-roll-placeholder') || '{exam_roll_number}';
+        }
+
+        document.querySelectorAll('[data-admin-exams-admit-opening-edit-open]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                setValues(btn);
+                open();
+            });
+        });
+
+        closeBtn.addEventListener('click', close);
+        backdrop.addEventListener('click', close);
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                close();
+            }
+        });
+
+        let dragging = false;
+        let startY = 0;
+        let currentY = 0;
+        (handleEl || sheet).addEventListener('touchstart', (e) => {
+            dragging = true;
+            startY = e.touches[0].clientY;
+            currentY = 0;
+        }, { passive: true });
+
+        (handleEl || sheet).addEventListener('touchmove', (e) => {
+            if (!dragging) return;
+            const y = e.touches[0].clientY;
+            currentY = Math.max(0, y - startY);
+            sheet.style.transform = `translateY(${currentY}px)`;
+        }, { passive: true });
+
+        (handleEl || sheet).addEventListener('touchend', () => {
+            if (!dragging) return;
+            dragging = false;
+            sheet.style.transform = '';
+            if (currentY > 80) {
+                close();
+            }
+        });
+    })();
+
+    (function () {
+        const backdrop = document.querySelector('[data-admin-exam-form-edit-backdrop]');
+        const sheet = document.querySelector('[data-admin-exam-form-edit-sheet]');
+        const closeBtn = document.querySelector('[data-admin-exam-form-edit-close]');
+        const handleEl = document.querySelector('[data-admin-exam-form-edit-handle]');
+        const formEl = document.querySelector('[data-admin-exam-form-edit-form]');
+
+        const titleEl = document.querySelector('[data-admin-exam-form-edit-title]');
+        const applyUrlEl = document.querySelector('[data-admin-exam-form-edit-apply-url]');
+        const placeholderEl = document.querySelector('[data-admin-exam-form-edit-placeholder]');
+        const semesterEl = document.querySelector('[data-admin-exam-form-edit-semester]');
+        const programEl = document.querySelector('[data-admin-exam-form-edit-program]');
+        const deptEl = document.querySelector('[data-admin-exam-form-edit-department]');
+        const openFromEl = document.querySelector('[data-admin-exam-form-edit-open-from]');
+        const openToEl = document.querySelector('[data-admin-exam-form-edit-open-to]');
+        const noteEl = document.querySelector('[data-admin-exam-form-edit-note]');
+
+        if (!backdrop || !sheet || !closeBtn || !formEl) {
+            return;
+        }
+
+        let scrollLockY = 0;
+        function lockScroll() {
+            scrollLockY = window.scrollY || 0;
+            document.body.style.position = 'fixed';
+            document.body.style.top = `-${scrollLockY}px`;
+            document.body.style.left = '0';
+            document.body.style.right = '0';
+            document.body.style.width = '100%';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function unlockScroll() {
+            document.body.style.position = '';
+            const top = document.body.style.top;
+            document.body.style.top = '';
+            document.body.style.left = '';
+            document.body.style.right = '';
+            document.body.style.width = '';
+            document.body.style.overflow = '';
+            const y = top ? Math.abs(parseInt(top, 10)) : scrollLockY;
+            window.scrollTo(0, Number.isFinite(y) ? y : 0);
+        }
+
+        function open() {
+            lockScroll();
+            backdrop.classList.remove('opacity-0', 'pointer-events-none');
+            backdrop.classList.add('opacity-100');
+            sheet.classList.remove('translate-y-full', 'opacity-0', 'pointer-events-none');
+            sheet.classList.add('opacity-100');
+        }
+
+        function close() {
+            backdrop.classList.add('opacity-0', 'pointer-events-none');
+            backdrop.classList.remove('opacity-100');
+            sheet.classList.add('translate-y-full', 'opacity-0', 'pointer-events-none');
+            sheet.classList.remove('opacity-100');
+            sheet.style.transform = '';
+            unlockScroll();
+        }
+
+        function setValues(btn) {
+            const action = btn.getAttribute('data-update-url') || '';
+            if (action) {
+                formEl.setAttribute('action', action);
+            }
+            if (titleEl) titleEl.value = btn.getAttribute('data-title') || '';
+            if (applyUrlEl) applyUrlEl.value = btn.getAttribute('data-apply-url') || '';
+            if (placeholderEl) placeholderEl.value = btn.getAttribute('data-apply-placeholder') || '{exam_roll_number}';
+            if (semesterEl) semesterEl.value = btn.getAttribute('data-semester-label') || '';
+            if (programEl) programEl.value = btn.getAttribute('data-program') || '';
+            if (deptEl) deptEl.value = btn.getAttribute('data-department') || '';
+            if (openFromEl) openFromEl.value = btn.getAttribute('data-open-from') || '';
+            if (openToEl) openToEl.value = btn.getAttribute('data-open-to') || '';
+            if (noteEl) noteEl.value = btn.getAttribute('data-note') || '';
+        }
+
+        document.querySelectorAll('[data-admin-exam-form-edit-open]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                setValues(btn);
+                open();
+            });
+        });
+
+        closeBtn.addEventListener('click', close);
+        backdrop.addEventListener('click', close);
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                close();
+            }
+        });
+
+        let dragging = false;
+        let startY = 0;
+        let currentY = 0;
+        (handleEl || sheet).addEventListener('touchstart', (e) => {
+            dragging = true;
+            startY = e.touches[0].clientY;
+            currentY = 0;
+        }, { passive: true });
+
+        (handleEl || sheet).addEventListener('touchmove', (e) => {
+            if (!dragging) return;
+            const y = e.touches[0].clientY;
+            currentY = Math.max(0, y - startY);
+            sheet.style.transform = `translateY(${currentY}px)`;
+        }, { passive: true });
+
+        (handleEl || sheet).addEventListener('touchend', () => {
+            if (!dragging) return;
+            dragging = false;
+            sheet.style.transform = '';
+            if (currentY > 80) {
+                close();
+            }
+        });
     })();
 
     (function () {

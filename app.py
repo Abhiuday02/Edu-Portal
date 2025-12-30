@@ -347,6 +347,37 @@ def seed_attendance_for_student(db: sqlite3.Connection, student_id: int) -> None
         rows,
     )
 
+
+def _norm_text(v: str | None) -> str:
+    return " ".join((v or "").strip().lower().split())
+
+
+def _scope_match(student_val: str, rule_val: str) -> bool:
+    s = _norm_text(student_val)
+    r = _norm_text(rule_val)
+    if not r:
+        return True
+    if not s:
+        # If we cannot determine student's value reliably, do not hide the record.
+        return True
+    return s == r or (r in s) or (s in r)
+
+
+def _scope_match_program(student_program_name: str, student_program_id: int | None, rule_val: str) -> bool:
+    rv = (rule_val or "").strip()
+    if not rv:
+        return True
+    if rv.isdigit() and student_program_id is not None:
+        return int(rv) == int(student_program_id)
+    return _scope_match(student_program_name, rv)
+
+
+def _scope_rule_clean(v: str | None) -> str:
+    r = _norm_text(v)
+    if r in {"na", "n/a", "none", "all", "any", "-", "--", "example"}:
+        return ""
+    return r
+
 @app.template_filter("fmt_dt")
 def fmt_dt(value: str) -> str:
     if not value:
@@ -2391,7 +2422,7 @@ def admin_admit_card_opening_delete(opening_id: int):
     db = get_db()
     db.execute("DELETE FROM admit_card_openings WHERE id = ?", (int(opening_id),))
     db.commit()
-    return redirect(url_for("admin_admit_card_openings"))
+    return redirect(get_safe_next_url("admin_admit_card_openings"))
 
 
 @app.get("/admin/exam-forms/new")
@@ -2481,7 +2512,7 @@ def admin_admit_card_opening_create():
         ),
     )
     db.commit()
-    return redirect(url_for("admin_admit_card_openings"))
+    return redirect(get_safe_next_url("admin_admit_card_openings"))
 
 
 @app.post("/admin/exam-forms/new")
@@ -2573,6 +2604,76 @@ def admin_exam_form_toggle(form_id: int):
         return redirect(url_for("admin_exam_forms"))
     new_status = "CLOSED" if (form["status"] or "").upper() == "OPEN" else "OPEN"
     db.execute("UPDATE exam_forms SET status = ? WHERE id = ?", (new_status, int(form_id)))
+    db.commit()
+    return redirect(url_for("admin_exam_forms"))
+
+
+@app.get("/admin/exam-forms/<int:form_id>/edit")
+@admin_login_required
+def admin_exam_form_edit(form_id: int):
+    db = get_db()
+    form = db.execute("SELECT * FROM exam_forms WHERE id = ?", (int(form_id),)).fetchone()
+    if not form:
+        return redirect(url_for("admin_exam_forms"))
+    return render_template(
+        "admin_exam_form_form.html",
+        page_title="Edit Exam Form",
+        page_subtitle="Update exam application form",
+        active_page="admin_exam_forms",
+        form=form,
+        error=None,
+    )
+
+
+@app.post("/admin/exam-forms/<int:form_id>/edit")
+@admin_login_required
+def admin_exam_form_update(form_id: int):
+    title = (request.form.get("title") or "").strip()
+    semester_label = (request.form.get("semester_label") or "").strip()
+    open_from = (request.form.get("open_from") or "").strip() or None
+    open_to = (request.form.get("open_to") or "").strip() or None
+    note = (request.form.get("note") or "").strip() or None
+    program = (request.form.get("program") or "").strip() or None
+    department = (request.form.get("department") or "").strip() or None
+    apply_url = (request.form.get("apply_url") or "").strip() or None
+    apply_roll_placeholder = (request.form.get("apply_roll_placeholder") or "").strip() or None
+
+    if not title or not semester_label or not apply_url or not open_from or not open_to:
+        db = get_db()
+        form = db.execute("SELECT * FROM exam_forms WHERE id = ?", (int(form_id),)).fetchone()
+        return render_template(
+            "admin_exam_form_form.html",
+            page_title="Edit Exam Form",
+            page_subtitle="Update exam application form",
+            active_page="admin_exam_forms",
+            form=form,
+            error="Title, semester, link, open from and open to are required.",
+        )
+
+    derived_status = "OPEN" if is_exam_form_open(open_from, open_to) else "CLOSED"
+
+    db = get_db()
+    db.execute(
+        """
+        UPDATE exam_forms
+        SET title = ?, semester_label = ?, status = ?, open_from = ?, open_to = ?, note = ?,
+            apply_url = ?, apply_roll_placeholder = ?, program = ?, department = ?
+        WHERE id = ?
+        """,
+        (
+            title,
+            semester_label,
+            derived_status,
+            open_from,
+            open_to,
+            note,
+            apply_url,
+            apply_roll_placeholder,
+            program,
+            department,
+            int(form_id),
+        ),
+    )
     db.commit()
     return redirect(url_for("admin_exam_forms"))
 
@@ -3259,17 +3360,50 @@ def exams():
     student_program = db.execute("SELECT * FROM student_programs WHERE student_id = ?", (sid,)).fetchone()
     profile = db.execute("SELECT * FROM student_profile WHERE student_id = ?", (sid,)).fetchone()
 
+    student_program_id_int: int | None = None
+    if student_program and ("program_id" in student_program.keys()):
+        try:
+            student_program_id_int = int(student_program["program_id"])
+        except Exception:
+            student_program_id_int = None
+
+    resolved_student_program = ""
+    resolved_student_department = ""
+    if student_program:
+        try:
+            program_row = db.execute(
+                "SELECT * FROM programs WHERE id = ?",
+                (int(student_program["program_id"]),),
+            ).fetchone()
+            if program_row:
+                resolved_student_program = _norm_text(program_row.get("name") if hasattr(program_row, "get") else program_row["name"])
+                resolved_student_department = _norm_text(program_row.get("branch") if hasattr(program_row, "get") else program_row["branch"])
+        except Exception:
+            resolved_student_program = ""
+            resolved_student_department = ""
+
+    if not resolved_student_program:
+        resolved_student_program = _norm_text(student["program"] if student and ("program" in student.keys()) else "")
+
+    if profile and ("department" in profile.keys()):
+        resolved_student_department = _norm_text(profile["department"])
+    elif not resolved_student_department:
+        resolved_student_department = _norm_text("")
+
     exam_roll_number = ""
     if student and details:
         exam_roll_number = (details["exam_roll_number"] or "").strip() or (student["roll_no"] or "").strip()
+    elif student:
+        exam_roll_number = (student["roll_no"] or "").strip()
 
     resolved_forms = []
     for f in forms:
-        form_program = (f["program"] or "").strip() if ("program" in f.keys()) else ""
-        form_department = (f["department"] or "").strip() if ("department" in f.keys()) else ""
-        if student and form_program and (student["program"] or "").strip() != form_program:
+        raw_form_program = (f["program"] or "") if ("program" in f.keys()) else ""
+        form_program = _norm_text(raw_form_program)
+        form_department = _scope_rule_clean((f["department"] or "") if ("department" in f.keys()) else "")
+        if not _scope_match_program(resolved_student_program, student_program_id_int, raw_form_program):
             continue
-        if profile and form_department and (profile["department"] or "").strip() != form_department:
+        if not _scope_match(resolved_student_department, form_department):
             continue
 
         is_open = is_exam_form_open(f["open_from"], f["open_to"]) if ("open_from" in f.keys()) else False
@@ -3287,26 +3421,43 @@ def exams():
         )
 
     admit_card_link = None
-    if exam_roll_number:
-        openings = db.execute(
-            "SELECT * FROM admit_card_openings ORDER BY id DESC"
-        ).fetchall()
-        for o in openings:
-            form_program = (o["program"] or "").strip() if ("program" in o.keys()) else ""
-            form_department = (o["department"] or "").strip() if ("department" in o.keys()) else ""
-            if student and form_program and (student["program"] or "").strip() != form_program:
-                continue
-            if profile and form_department and (profile["department"] or "").strip() != form_department:
-                continue
-            if not is_exam_form_open(o["open_from"] if ("open_from" in o.keys()) else None, o["open_to"] if ("open_to" in o.keys()) else None):
-                continue
-            admit_card_link = resolve_exam_link(
+    resolved_admit_openings = []
+    openings = db.execute(
+        "SELECT * FROM admit_card_openings ORDER BY id DESC"
+    ).fetchall()
+    for o in openings:
+        raw_o_program = (o["program"] or "") if ("program" in o.keys()) else ""
+        o_program = _norm_text(raw_o_program)
+        o_department = _scope_rule_clean((o["department"] or "") if ("department" in o.keys()) else "")
+        if not _scope_match_program(resolved_student_program, student_program_id_int, raw_o_program):
+            continue
+        if not _scope_match(resolved_student_department, o_department):
+            continue
+
+        is_open = is_exam_form_open(
+            o["open_from"] if ("open_from" in o.keys()) else None,
+            o["open_to"] if ("open_to" in o.keys()) else None,
+        )
+        link = ""
+        if exam_roll_number:
+            link = resolve_exam_link(
                 o["admit_card_url"] if ("admit_card_url" in o.keys()) else None,
                 o["roll_placeholder"] if ("roll_placeholder" in o.keys()) else None,
                 exam_roll_number,
             )
-            if admit_card_link:
-                break
+        resolved_admit_openings.append(
+            {
+                **dict(o),
+                "is_open": is_open,
+                "computed_status": "OPEN" if is_open else "CLOSED",
+                "resolved_url": link,
+            }
+        )
+
+    for o in resolved_admit_openings:
+        if o.get("is_open") and o.get("resolved_url"):
+            admit_card_link = o.get("resolved_url")
+            break
 
     admit_card = None
     admit_subjects = []
@@ -3388,12 +3539,86 @@ def exams():
         active_page="exams",
         forms=resolved_forms,
         admit_card_link=admit_card_link,
+        admit_openings=resolved_admit_openings,
         admit_card=admit_card,
         admit_subjects=admit_subjects,
         semester_result=semester_result,
         semester_result_courses=semester_result_courses,
         results=results,
     )
+
+
+@app.get("/admin/admit-card-openings/<int:opening_id>/edit")
+@admin_login_required
+def admin_admit_card_opening_edit(opening_id: int):
+    db = get_db()
+    opening = db.execute(
+        "SELECT * FROM admit_card_openings WHERE id = ?",
+        (int(opening_id),),
+    ).fetchone()
+    if not opening:
+        return redirect(url_for("admin_admit_card_openings"))
+    return render_template(
+        "admin_admit_card_opening_form.html",
+        page_title="Edit Admit Card Opening",
+        page_subtitle="Update admit card link window",
+        active_page="admin_exam_forms",
+        error=None,
+        opening=opening,
+    )
+
+
+@app.post("/admin/admit-card-openings/<int:opening_id>/edit")
+@admin_login_required
+def admin_admit_card_opening_update(opening_id: int):
+    title = (request.form.get("title") or "").strip()
+    semester_label = (request.form.get("semester_label") or "").strip()
+    open_from = (request.form.get("open_from") or "").strip() or None
+    open_to = (request.form.get("open_to") or "").strip() or None
+    note = (request.form.get("note") or "").strip() or None
+    program = (request.form.get("program") or "").strip() or None
+    department = (request.form.get("department") or "").strip() or None
+    admit_card_url = (request.form.get("admit_card_url") or "").strip() or None
+    roll_placeholder = (request.form.get("roll_placeholder") or "").strip() or None
+
+    if not title or not semester_label or not admit_card_url or not open_from or not open_to:
+        db = get_db()
+        opening = db.execute(
+            "SELECT * FROM admit_card_openings WHERE id = ?",
+            (int(opening_id),),
+        ).fetchone()
+        return render_template(
+            "admin_admit_card_opening_form.html",
+            page_title="Edit Admit Card Opening",
+            page_subtitle="Update admit card link window",
+            active_page="admin_exam_forms",
+            error="Title, semester, link, open from and open to are required.",
+            opening=opening,
+        )
+
+    db = get_db()
+    db.execute(
+        """
+        UPDATE admit_card_openings
+        SET title = ?, semester_label = ?, open_from = ?, open_to = ?, note = ?,
+            program = ?, department = ?, admit_card_url = ?, roll_placeholder = ?
+        WHERE id = ?
+        """,
+        (
+            title,
+            semester_label,
+            open_from,
+            open_to,
+            note,
+            program,
+            department,
+            admit_card_url,
+            roll_placeholder,
+            int(opening_id),
+        ),
+    )
+    db.commit()
+    return redirect(get_safe_next_url("admin_admit_card_openings"))
 
 
 @app.post("/exams/forms/<int:form_id>/apply")

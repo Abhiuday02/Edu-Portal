@@ -9,58 +9,58 @@
 
 <div class="max-w-3xl">
     <div class="admin-card p-6">
-        <form method="post" action="{{ url_for('admin_exam_form_create') }}" class="space-y-4">
+        <form method="post" action="{% if form %}{{ url_for('admin_exam_form_update', form_id=form.id) }}{% else %}{{ url_for('admin_exam_form_create') }}{% endif %}" class="space-y-4">
                 <div>
                     <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Title</label>
-                    <input name="title" type="text" placeholder="e.g. Semester Examination Form" class="admin-input w-full" />
+                    <input name="title" type="text" value="{{ form.title if form else '' }}" placeholder="e.g. Semester Examination Form" class="admin-input w-full" />
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Apply Link (URL)</label>
-                        <input name="apply_url" type="url" placeholder="https://..." class="admin-input w-full" />
+                        <input name="apply_url" type="url" value="{{ form.apply_url if form and form.apply_url else '' }}" placeholder="https://..." class="admin-input w-full" />
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Placeholder Marker</label>
-                        <input name="apply_roll_placeholder" type="text" value="{exam_roll_number}" class="admin-input w-full" />
+                        <input name="apply_roll_placeholder" type="text" value="{{ form.apply_roll_placeholder if form and form.apply_roll_placeholder else '{exam_roll_number}' }}" class="admin-input w-full" />
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Semester Label</label>
-                        <input name="semester_label" type="text" placeholder="e.g. SEM-4 (2025-26)" class="admin-input w-full" />
+                        <input name="semester_label" type="text" value="{{ form.semester_label if form else '' }}" placeholder="e.g. SEM-4 (2025-26)" class="admin-input w-full" />
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Program (optional)</label>
-                        <input name="program" type="text" placeholder="e.g. B.Tech" class="admin-input w-full" />
+                        <input name="program" type="text" value="{{ form.program if form and form.program else '' }}" placeholder="e.g. B.Tech" class="admin-input w-full" />
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Open From</label>
-                        <input name="open_from" type="date" class="admin-input w-full" />
+                        <input name="open_from" type="date" value="{{ form.open_from if form and form.open_from else '' }}" class="admin-input w-full" />
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Open To</label>
-                        <input name="open_to" type="date" class="admin-input w-full" />
+                        <input name="open_to" type="date" value="{{ form.open_to if form and form.open_to else '' }}" class="admin-input w-full" />
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Department (optional)</label>
-                        <input name="department" type="text" placeholder="e.g. Computer Science" class="admin-input w-full" />
+                        <input name="department" type="text" value="{{ form.department if form and form.department else '' }}" placeholder="e.g. Computer Science" class="admin-input w-full" />
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Additional Note (optional)</label>
-                        <input name="note" type="text" placeholder="Optional message for students" class="admin-input w-full" />
+                        <input name="note" type="text" value="{{ form.note if form and form.note else '' }}" placeholder="Optional message for students" class="admin-input w-full" />
                     </div>
                 </div>
 
                 <div class="flex items-center justify-end gap-2 pt-2">
-                    <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> Create</button>
+                    <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> {% if form %}Update{% else %}Create{% endif %}</button>
                 </div>
         </form>
     </div>

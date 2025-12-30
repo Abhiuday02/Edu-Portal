@@ -37,13 +37,13 @@
                     <input type="hidden" name="body_html" value="" data-news-standalone-body-html>
                     <div class="rounded-xl border border-slate-200 overflow-hidden">
                         <div class="flex flex-wrap items-center gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200">
-                            <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-std-cmd="bold">B</button>
-                            <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-std-cmd="italic">I</button>
-                            <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-std-cmd="strikeThrough">S</button>
-                            <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-std-cmd="formatBlock" data-rte-std-arg="pre">Code</button>
-                            <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-std-cmd="insertUnorderedList">• List</button>
-                            <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-std-cmd="insertOrderedList">1. List</button>
-                            <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-std-cmd="removeFormat">Clear formatting</button>
+                            <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-std-cmd="bold" title="Bold" aria-label="Bold"><span class="iconify text-base" data-icon="solar:text-bold"></span></button>
+                            <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-std-cmd="italic" title="Italic" aria-label="Italic"><span class="iconify text-base" data-icon="mdi:format-italic"></span></button>
+                            <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-std-cmd="strikeThrough" title="Strikethrough" aria-label="Strikethrough"><span class="iconify text-base" data-icon="solar:text-cross-outline"></span></button>
+                            <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-std-cmd="formatBlock" data-rte-std-arg="pre" title="Code block" aria-label="Code block"><span class="iconify text-base" data-icon="solar:code-square-outline"></span></button>
+                            <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-std-cmd="insertUnorderedList" title="Bulleted list" aria-label="Bulleted list"><span class="iconify text-base" data-icon="solar:list-outline"></span></button>
+                            <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-std-cmd="insertOrderedList" title="Numbered list" aria-label="Numbered list"><span class="iconify text-base" data-icon="mdi:format-list-numbered"></span></button>
+                            <button type="button" class="admin-btn admin-btn-soft text-xs" data-rte-std-cmd="removeFormat" title="Clear formatting" aria-label="Clear formatting"><span class="iconify text-base" data-icon="solar:eraser-outline"></span></button>
                         </div>
                         <div contenteditable="true" class="p-3 text-sm min-h-[160px] focus:outline-none" data-news-standalone-editor>{{ post.body|safe if post else '' }}</div>
                     </div>
