@@ -82,8 +82,8 @@
                         </select>
                     </div>
                     <div class="md:col-span-2 flex items-end gap-2">
-                        <button type="submit" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium w-full">Apply</button>
-                        <a href="{{ url_for('library') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all w-full text-center">Reset</a>
+                        <button type="submit" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium w-full inline-flex items-center justify-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> Apply</button>
+                        <a href="{{ url_for('library') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all w-full text-center inline-flex items-center justify-center gap-2"><span class="iconify text-base text-amber-600" data-icon="solar:restart-outline"></span> Reset</a>
                     </div>
                 </div>
             </form>
@@ -103,9 +103,9 @@
                                 </div>
                             </div>
                             <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-3">
-                                <span class="flex items-center gap-1">👤 {{ r.uploader }}</span>
+                                <span class="flex items-center gap-2"><span class="iconify" data-icon="solar:user-linear"></span> {{ r.uploader }}</span>
                                 <span class="w-1 h-1 rounded-full bg-slate-300"></span>
-                                <span class="flex items-center gap-1">🕒 {{ r.uploaded_at|fmt_dt }}</span>
+                                <span class="flex items-center gap-2"><span class="iconify" data-icon="solar:clock-circle-linear"></span> {{ r.uploaded_at|fmt_dt }}</span>
                                 {% if tag_list and tag_list[0].strip() %}
                                     <span class="w-1 h-1 rounded-full bg-slate-300"></span>
                                     <span class="minimal-badge bg-indigo-50 text-indigo-700">#{{ tag_list[0].strip() }}</span>
@@ -116,8 +116,8 @@
                             </div>
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
-                            <a href="{{ href }}" target="_blank" class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all">Open PDF</a>
-                            <a href="{{ href }}" target="_blank" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all">Download</a>
+                            <a href="{{ href }}" target="_blank" class="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all inline-flex items-center justify-center gap-2"><span class="iconify text-base" data-icon="solar:eye-bold"></span> Open PDF</a>
+                            <a href="{{ href }}" target="_blank" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center justify-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:download-outline"></span> Download</a>
                         </div>
                     </div>
                 {% endfor %}

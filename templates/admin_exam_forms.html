@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="flex items-center justify-end mb-4">
-    <button type="button" class="admin-btn admin-btn-primary" data-admin-exam-form-new-open>New Exam Form</button>
+    <button type="button" class="admin-btn admin-btn-primary inline-flex items-center gap-2" data-admin-exam-form-new-open><span class="iconify text-base" data-icon="solar:add-square-bold"></span> New Exam Form</button>
 </div>
 
 <div data-admin-exam-form-new-backdrop class="fixed inset-0 bg-slate-900/40 opacity-0 pointer-events-none transition-opacity z-40"></div>
@@ -15,7 +15,7 @@
                     <p class="text-xs text-slate-500">Create</p>
                     <p class="text-lg font-semibold text-slate-900">New Exam Form</p>
                 </div>
-                <button type="button" class="admin-btn admin-btn-soft" data-admin-exam-form-new-close>Close</button>
+                <button type="button" class="admin-btn admin-btn-soft inline-flex items-center gap-2" data-admin-exam-form-new-close><span class="iconify text-base text-slate-600" data-icon="solar:close-square-outline"></span> Close</button>
             </div>
 
             <div class="px-5 pt-3">
@@ -74,7 +74,7 @@
                     </div>
 
                     <div class="flex items-center justify-end gap-2 pt-2">
-                        <button type="submit" class="admin-btn admin-btn-primary">Create</button>
+                        <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> Create</button>
                     </div>
                 </form>
             </div>
@@ -92,7 +92,7 @@
                     <p class="text-xs text-slate-500">Create</p>
                     <p class="text-lg font-semibold text-slate-900">New Admit Card Opening</p>
                 </div>
-                <button type="button" class="admin-btn admin-btn-soft" data-admin-exams-admit-opening-new-close>Close</button>
+                <button type="button" class="admin-btn admin-btn-soft inline-flex items-center gap-2" data-admin-exams-admit-opening-new-close><span class="iconify text-base text-slate-600" data-icon="solar:close-square-outline"></span> Close</button>
             </div>
 
             <div class="px-5 pt-3">
@@ -151,7 +151,7 @@
                     </div>
 
                     <div class="flex items-center justify-end gap-2 pt-2">
-                        <button type="submit" class="admin-btn admin-btn-primary">Create</button>
+                        <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> Create</button>
                     </div>
                 </form>
             </div>
@@ -200,7 +200,7 @@
                             <td class="px-4 py-3 text-slate-700">{% if f.open_from and f.open_to %}{{ f.open_from }} → {{ f.open_to }}{% else %}-{% endif %}</td>
                             <td class="px-4 py-3">
                                 <form method="post" action="{{ url_for('admin_exam_form_delete', form_id=f.id) }}" onsubmit="return confirm('Delete this exam form?');">
-                                    <button type="submit" class="admin-btn bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs">Delete</button>
+                                    <button type="submit" class="admin-btn bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs inline-flex items-center gap-2"><span class="iconify text-sm text-rose-700" data-icon="solar:trash-bin-trash-outline"></span> Delete</button>
                                 </form>
                             </td>
                         </tr>
@@ -222,7 +222,7 @@
                 <h3 class="text-base font-semibold text-slate-900">Admit Card Openings</h3>
                 <p class="text-sm text-slate-500 mt-1">Windows when students can access the admit card link</p>
             </div>
-            <button type="button" class="admin-btn admin-btn-primary" data-admin-exams-admit-opening-new-open>New Admit Card Opening</button>
+            <button type="button" class="admin-btn admin-btn-primary inline-flex items-center gap-2" data-admin-exams-admit-opening-new-open><span class="iconify text-base" data-icon="solar:add-square-bold"></span> New Admit Card Opening</button>
         </div>
     </div>
     <div class="overflow-x-auto">
@@ -255,7 +255,7 @@
                             <td class="px-4 py-3 text-slate-700">{% if o.open_from and o.open_to %}{{ o.open_from }} → {{ o.open_to }}{% else %}-{% endif %}</td>
                             <td class="px-4 py-3">
                                 <form method="post" action="{{ url_for('admin_admit_card_opening_delete', opening_id=o.id) }}" onsubmit="return confirm('Delete this admit card opening?');">
-                                    <button type="submit" class="admin-btn bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs">Delete</button>
+                                    <button type="submit" class="admin-btn bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs inline-flex items-center gap-2"><span class="iconify text-sm text-rose-700" data-icon="solar:trash-bin-trash-outline"></span> Delete</button>
                                 </form>
                             </td>
                         </tr>

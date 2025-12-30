@@ -7,7 +7,7 @@
         <p class="text-xs text-slate-500 mt-2">Showing <span id="adminNewsVisibleCount">0</span> of <span id="adminNewsTotalCount">0</span></p>
     </div>
     <div class="flex items-center justify-end">
-        <button type="button" class="admin-btn admin-btn-primary" data-admin-news-new-open>New Post</button>
+        <button type="button" class="admin-btn admin-btn-primary inline-flex items-center gap-2" data-admin-news-new-open><span class="iconify text-base" data-icon="solar:add-square-bold"></span> New Post</button>
     </div>
 </div>
 
@@ -21,7 +21,7 @@
                     <p class="text-xs text-slate-500">Create</p>
                     <p class="text-lg font-semibold text-slate-900">New News Post</p>
                 </div>
-                <button type="button" class="admin-btn admin-btn-soft" data-admin-news-new-close>Close</button>
+                <button type="button" class="admin-btn admin-btn-soft inline-flex items-center gap-2" data-admin-news-new-close><span class="iconify text-base text-slate-600" data-icon="solar:close-square-outline"></span> Close</button>
             </div>
 
             <div class="px-5 pt-3">
@@ -87,7 +87,7 @@
                     </div>
 
                     <div class="flex items-center justify-end gap-2 pt-2">
-                        <button type="submit" class="admin-btn admin-btn-primary">Save</button>
+                        <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> Save</button>
                     </div>
                 </form>
             </div>
@@ -105,7 +105,7 @@
                     <p class="text-xs text-slate-500">Update</p>
                     <p class="text-lg font-semibold text-slate-900">Edit News Post</p>
                 </div>
-                <button type="button" class="admin-btn admin-btn-soft" data-admin-news-edit-close>Close</button>
+                <button type="button" class="admin-btn admin-btn-soft inline-flex items-center gap-2" data-admin-news-edit-close><span class="iconify text-base text-slate-600" data-icon="solar:close-square-outline"></span> Close</button>
             </div>
 
             <div class="px-5 pt-3">
@@ -169,7 +169,7 @@
                     </div>
 
                     <div class="flex items-center justify-end gap-2 pt-2">
-                        <button type="submit" class="admin-btn admin-btn-primary">Save</button>
+                        <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> Save</button>
                     </div>
                 </form>
             </div>
@@ -215,7 +215,7 @@
                             <div class="mt-3 flex flex-col gap-2">
                                 <button
                                     type="button"
-                                    class="admin-btn admin-btn-soft w-full"
+                                    class="admin-btn admin-btn-soft w-full inline-flex items-center justify-center gap-2"
                                     data-admin-news-edit-open
                                     data-post-id="{{ p.id }}"
                                     data-priority="{{ p.priority|e }}"
@@ -224,9 +224,9 @@
                                     data-body="{{ p.body|e }}"
                                     data-sender="{{ p.sender|e }}"
                                     data-tags="{{ (p.tags or '')|e }}"
-                                >Edit</button>
+                                ><span class="iconify text-base text-amber-600" data-icon="solar:pen-2-outline"></span> Edit</button>
                                 <form method="post" action="{{ url_for('admin_news_delete', post_id=p.id) }}" onsubmit="return confirm('Delete this post?');">
-                                    <button type="submit" class="admin-btn admin-btn-danger w-full">Delete</button>
+                                    <button type="submit" class="admin-btn admin-btn-danger w-full inline-flex items-center justify-center gap-2"><span class="iconify text-base text-rose-200" data-icon="solar:trash-bin-trash-outline"></span> Delete</button>
                                 </form>
                             </div>
                         </div>

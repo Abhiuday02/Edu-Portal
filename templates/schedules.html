@@ -78,7 +78,12 @@
                         {% set is_holiday = (m.item_type == 'HOLIDAY') %}
                         <div class="p-4 rounded-xl border {% if is_holiday %}border-rose-200 bg-gradient-to-r from-rose-50 to-white{% else %}border-amber-200 bg-gradient-to-r from-amber-50 to-white{% endif %} flex flex-col md:flex-row gap-4 items-start">
                             <div class="minimal-badge {% if is_holiday %}bg-rose-100 text-rose-700{% else %}bg-amber-100 text-amber-700{% endif %} flex items-center gap-1.5">
-                                {% if is_holiday %}<span>🏖️</span>{% else %}<span>🎉</span>{% endif %} {{ m.item_type }}
+                                {% if is_holiday %}
+                                    <span class="iconify" data-icon="solar:sun-2-linear"></span>
+                                {% else %}
+                                    <span class="iconify" data-icon="solar:confetti-linear"></span>
+                                {% endif %}
+                                {{ m.item_type }}
                             </div>
                             <div class="flex-1">
                                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-1 mb-2">
@@ -150,7 +155,7 @@
                     <p class="text-xs text-slate-500" data-sheet-date-label>Date</p>
                     <p class="text-base font-semibold text-slate-900" data-sheet-title>Schedule</p>
                 </div>
-                <button type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all" data-sheet-close>Close</button>
+                <button type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center justify-center gap-2" data-sheet-close><span class="iconify text-base text-slate-600" data-icon="solar:close-square-outline"></span> Close</button>
             </div>
         </div>
         <div class="px-6 pb-6 max-h-[70vh] overflow-y-auto hide-scrollbar" data-sheet-body>

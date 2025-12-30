@@ -20,7 +20,7 @@
         <input name="email" type="email" placeholder="Email (optional)" class="admin-input" />
         <input name="phone" type="text" placeholder="Phone (optional)" class="admin-input" />
         <div class="flex justify-end md:justify-start">
-            <button type="submit" class="admin-btn admin-btn-primary">Add</button>
+            <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:add-square-bold"></span> Add</button>
         </div>
     </form>
 </div>
@@ -49,7 +49,7 @@
                             <td class="px-4 py-3 text-slate-700">{{ t.phone or '' }}</td>
                             <td class="px-4 py-3">
                                 <form method="post" action="{{ url_for('admin_teachers_delete', teacher_id=t.id) }}" onsubmit="return confirm('Delete this teacher?');">
-                                    <button type="submit" class="admin-btn admin-btn-danger text-xs">Delete</button>
+                                    <button type="submit" class="admin-btn admin-btn-danger text-xs inline-flex items-center gap-2"><span class="iconify text-sm text-rose-200" data-icon="solar:trash-bin-trash-outline"></span> Delete</button>
                                 </form>
                             </td>
                         </tr>

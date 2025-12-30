@@ -23,7 +23,7 @@
                     {% if filters.to_dt %}<input type="hidden" name="to" value="{{ filters.to_dt }}">{% endif %}
 
                     <details class="absolute inset-y-0 right-0 flex items-center pr-2"{% if filters_active and (filters.priority or filters.news_type or filters.sender or filters.tag or filters.from_dt or filters.to_dt) %} open{% endif %}>
-                        <summary class="list-none cursor-pointer select-none p-2 rounded-xl hover:bg-slate-100 text-slate-600" aria-label="Advanced filters">⚙️</summary>
+                        <summary class="list-none cursor-pointer select-none p-2 rounded-xl hover:bg-slate-100 text-slate-600" aria-label="Advanced filters"><span class="iconify text-lg" data-icon="solar:settings-outline"></span></summary>
                         <div class="absolute right-0 top-full mt-2 w-[min(520px,90vw)] z-20">
                             <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-lg">
                                 <form method="get">
@@ -69,8 +69,8 @@
                                             <input type="datetime-local" name="to" value="{{ filters.to_dt }}" class="w-full minimal-input">
                                         </div>
                                         <div class="md:col-span-6 flex flex-col md:flex-row items-stretch md:items-center justify-end gap-2 pt-1">
-                                            <button type="submit" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium">Apply</button>
-                                            <a href="{{ url_for('news') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all text-center">Reset</a>
+                                            <button type="submit" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium inline-flex items-center justify-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> Apply</button>
+                                            <a href="{{ url_for('news') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all text-center inline-flex items-center justify-center gap-2"><span class="iconify text-base text-amber-600" data-icon="solar:restart-outline"></span> Reset</a>
                                         </div>
                                     </div>
                                 </form>
@@ -79,7 +79,7 @@
                     </details>
                 </div>
             </form>
-            <a href="{{ url_for('news') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all text-center">Clear</a>
+            <a href="{{ url_for('news') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all text-center inline-flex items-center justify-center gap-2"><span class="iconify text-base text-rose-600" data-icon="solar:eraser-outline"></span> Clear</a>
         </div>
     </div>
 
@@ -96,7 +96,14 @@
                     {% set tag_list = (p.tags.split(',') if p.tags else []) %}
                     <div class="p-4 rounded-xl border {% if cat == 'URGENT' %}border-rose-200 bg-gradient-to-r from-rose-50 to-white{% elif cat == 'EVENT' %}border-amber-200 bg-gradient-to-r from-amber-50 to-white{% else %}border-slate-200 bg-white{% endif %} flex flex-col md:flex-row gap-4 items-start">
                         <div class="minimal-badge {% if cat == 'URGENT' %}bg-rose-100 text-rose-700{% elif cat == 'EVENT' %}bg-amber-100 text-amber-700{% else %}bg-slate-100 text-slate-700{% endif %} flex items-center gap-1.5">
-                            {% if cat == 'URGENT' %}<span>🚨</span>{% elif cat == 'EVENT' %}<span>🎉</span>{% else %}<span>ℹ️</span>{% endif %} {{ cat }}
+                            {% if cat == 'URGENT' %}
+                                <span class="iconify" data-icon="solar:danger-triangle-bold"></span>
+                            {% elif cat == 'EVENT' %}
+                                <span class="iconify" data-icon="solar:calendar-linear"></span>
+                            {% else %}
+                                <span class="iconify" data-icon="solar:info-circle-bold"></span>
+                            {% endif %}
+                            {{ cat }}
                         </div>
                         <div class="flex-1">
                             <div class="flex flex-col md:flex-row md:items-center justify-between gap-1 mb-2">
@@ -119,23 +126,23 @@
                                         <div class="rounded-2xl border border-slate-200 bg-white overflow-hidden">
                                             <img src="{{ att_url }}" alt="{{ att_name }}" class="w-full max-h-72 object-contain bg-slate-50">
                                             <div class="p-3 flex items-center justify-between gap-3">
-                                                <p class="text-xs text-slate-600 truncate">📎 {{ att_name }}</p>
-                                                <a href="{{ att_url }}" target="_blank" rel="noopener" class="px-3 py-2 rounded-xl minimal-btn minimal-btn-primary text-xs font-medium">Preview</a>
+                                                <p class="text-xs text-slate-600 truncate flex items-center gap-2"><span class="iconify" data-icon="solar:paperclip-2-linear"></span> {{ att_name }}</p>
+                                                <a href="{{ att_url }}" target="_blank" rel="noopener" class="px-3 py-2 rounded-xl minimal-btn minimal-btn-primary text-xs font-medium inline-flex items-center justify-center gap-2"><span class="iconify text-sm" data-icon="solar:eye-bold"></span> Preview</a>
                                             </div>
                                         </div>
                                     {% else %}
                                         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-2xl border border-slate-200 bg-white p-3">
-                                            <p class="text-xs text-slate-600 truncate">📎 {{ att_name }}</p>
+                                            <p class="text-xs text-slate-600 truncate flex items-center gap-2"><span class="iconify" data-icon="solar:paperclip-2-linear"></span> {{ att_name }}</p>
                                             <div class="flex items-center gap-2">
-                                                <a href="{{ att_url }}" target="_blank" rel="noopener" class="px-3 py-2 rounded-xl minimal-btn minimal-btn-primary text-xs font-medium">Preview</a>
-                                                <a href="{{ att_url }}" download class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-medium hover:bg-slate-200 transition-all">Download</a>
+                                                <a href="{{ att_url }}" target="_blank" rel="noopener" class="px-3 py-2 rounded-xl minimal-btn minimal-btn-primary text-xs font-medium inline-flex items-center justify-center gap-2"><span class="iconify text-sm" data-icon="solar:eye-bold"></span> Preview</a>
+                                                <a href="{{ att_url }}" download class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-medium hover:bg-slate-200 transition-all inline-flex items-center justify-center gap-2"><span class="iconify text-sm text-indigo-600" data-icon="solar:download-outline"></span> Download</a>
                                             </div>
                                         </div>
                                     {% endif %}
                                 </div>
                             {% endif %}
                             <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                                <span class="flex items-center gap-1">👤 {{ p.sender }}</span>
+                                <span class="flex items-center gap-2"><span class="iconify" data-icon="solar:user-linear"></span> {{ p.sender }}</span>
                                 <span class="w-1 h-1 rounded-full bg-slate-300"></span>
                                 <span class="minimal-badge bg-indigo-50 text-indigo-700">{{ p.news_type }}</span>
                                 <span class="minimal-badge bg-slate-100 text-slate-600">{{ p.priority }}</span>
@@ -151,7 +158,7 @@
                 {% endfor %}
             {% else %}
                 <div class="rounded-2xl border p-6 text-center">
-                    <div class="text-4xl mb-4 text-slate-300">📰</div>
+                    <div class="text-4xl mb-4 text-slate-300"><span class="iconify" data-icon="solar:document-text-linear"></span></div>
                     <p class="text-sm text-slate-600">No news found for the selected filters.</p>
                     <p class="text-xs text-slate-400 mt-2">Try clearing filters or adjusting search terms.</p>
                 </div>

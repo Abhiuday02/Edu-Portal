@@ -8,6 +8,7 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.15/dist/tailwind.min.css" rel="stylesheet">
 
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
     <style>
         .attendance-cell {
             width: 12px;
@@ -149,32 +150,32 @@
                     <div class="text-xs text-slate-400">Roll No: {{ student.roll_no if student else '-' }}</div>
                 </div>
             </div>
-            <button data-mobile-nav-toggle class="p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-all" aria-label="Close menu" aria-expanded="false">✕</button>
+            <button data-mobile-nav-toggle class="p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-all" aria-label="Close menu" aria-expanded="false"><span class="iconify text-xl" data-icon="solar:close-square-outline"></span></button>
         </div>
 
         <nav class="space-y-1">
             <a href="{{ url_for('dashboard') }}" class="minimal-nav-item w-full items-center justify-between{% if active_page == 'dashboard' %} active{% endif %}">
-                <span class="flex items-center gap-3 text-sm"><span class="text-lg">🏠</span> Dashboard</span>
+                <span class="flex items-center gap-3 text-sm"><span class="iconify text-lg" data-icon="{% if active_page == 'dashboard' %}solar:home-2-bold{% else %}solar:home-2-outline{% endif %}"></span> Dashboard</span>
                 <span class="text-xs text-slate-400">Home</span>
             </a>
             <a href="{{ url_for('news') }}" class="minimal-nav-item w-full items-center justify-between{% if active_page == 'news' %} active{% endif %}">
-                <span class="flex items-center gap-3 text-sm"><span class="text-lg">📰</span> News & Feed</span>
+                <span class="flex items-center gap-3 text-sm"><span class="iconify text-lg" data-icon="{% if active_page == 'news' %}solar:document-text-bold{% else %}solar:document-text-outline{% endif %}"></span> News & Feed</span>
                 <span class="text-xs text-slate-400">Updates</span>
             </a>
             <a href="{{ url_for('schedules') }}" class="minimal-nav-item w-full items-center justify-between{% if active_page == 'schedules' %} active{% endif %}">
-                <span class="flex items-center gap-3 text-sm"><span class="text-lg">📅</span> Schedules</span>
+                <span class="flex items-center gap-3 text-sm"><span class="iconify text-lg" data-icon="{% if active_page == 'schedules' %}solar:calendar-bold{% else %}solar:calendar-outline{% endif %}"></span> Schedules</span>
                 <span class="text-xs text-slate-400">Calendar</span>
             </a>
             <a href="{{ url_for('library') }}" class="minimal-nav-item w-full items-center justify-between{% if active_page == 'library' %} active{% endif %}">
-                <span class="flex items-center gap-3 text-sm"><span class="text-lg">📚</span> Library</span>
+                <span class="flex items-center gap-3 text-sm"><span class="iconify text-lg" data-icon="{% if active_page == 'library' %}solar:book-2-bold{% else %}solar:book-2-outline{% endif %}"></span> Library</span>
                 <span class="text-xs text-slate-400">Resources</span>
             </a>
             <a href="{{ url_for('exams') }}" class="minimal-nav-item w-full items-center justify-between{% if active_page == 'exams' %} active{% endif %}">
-                <span class="flex items-center gap-3 text-sm"><span class="text-lg">📝</span> Exams</span>
+                <span class="flex items-center gap-3 text-sm"><span class="iconify text-lg" data-icon="{% if active_page == 'exams' %}solar:pen-2-bold{% else %}solar:pen-2-outline{% endif %}"></span> Exams</span>
                 <span class="text-xs text-slate-400">Results</span>
             </a>
             <a href="{{ url_for('profile') }}" class="minimal-nav-item w-full items-center justify-between{% if active_page == 'profile' %} active{% endif %}">
-                <span class="flex items-center gap-3 text-sm"><span class="text-lg">👤</span> Profile</span>
+                <span class="flex items-center gap-3 text-sm"><span class="iconify text-lg" data-icon="{% if active_page == 'profile' %}solar:user-bold{% else %}solar:user-outline{% endif %}"></span> Profile</span>
                 <span class="text-xs text-slate-400">Account</span>
             </a>
         </nav>
@@ -199,27 +200,27 @@
 
         <nav class="space-y-1">
             <a href="{{ url_for('dashboard') }}" class="minimal-nav-item w-full items-center justify-between{% if active_page == 'dashboard' %} active{% endif %}">
-                <span class="flex items-center gap-3 text-sm"><span class="text-lg">🏠</span> Dashboard</span>
+                <span class="flex items-center gap-3 text-sm"><span class="iconify text-lg" data-icon="{% if active_page == 'dashboard' %}solar:home-2-bold{% else %}solar:home-2-outline{% endif %}"></span> Dashboard</span>
                 <span class="text-xs text-slate-400">Home</span>
             </a>
             <a href="{{ url_for('news') }}" class="minimal-nav-item w-full items-center justify-between{% if active_page == 'news' %} active{% endif %}">
-                <span class="flex items-center gap-3 text-sm"><span class="text-lg">📰</span> News & Feed</span>
+                <span class="flex items-center gap-3 text-sm"><span class="iconify text-lg" data-icon="{% if active_page == 'news' %}solar:document-text-bold{% else %}solar:document-text-outline{% endif %}"></span> News & Feed</span>
                 <span class="text-xs text-slate-400">Updates</span>
             </a>
             <a href="{{ url_for('schedules') }}" class="minimal-nav-item w-full items-center justify-between{% if active_page == 'schedules' %} active{% endif %}">
-                <span class="flex items-center gap-3 text-sm"><span class="text-lg">📅</span> Schedules</span>
+                <span class="flex items-center gap-3 text-sm"><span class="iconify text-lg" data-icon="{% if active_page == 'schedules' %}solar:calendar-bold{% else %}solar:calendar-outline{% endif %}"></span> Schedules</span>
                 <span class="text-xs text-slate-400">Calendar</span>
             </a>
             <a href="{{ url_for('library') }}" class="minimal-nav-item w-full items-center justify-between{% if active_page == 'library' %} active{% endif %}">
-                <span class="flex items-center gap-3 text-sm"><span class="text-lg">📚</span> Library</span>
+                <span class="flex items-center gap-3 text-sm"><span class="iconify text-lg" data-icon="{% if active_page == 'library' %}solar:book-2-bold{% else %}solar:book-2-outline{% endif %}"></span> Library</span>
                 <span class="text-xs text-slate-400">Resources</span>
             </a>
             <a href="{{ url_for('exams') }}" class="minimal-nav-item w-full items-center justify-between{% if active_page == 'exams' %} active{% endif %}">
-                <span class="flex items-center gap-3 text-sm"><span class="text-lg">📝</span> Exams</span>
+                <span class="flex items-center gap-3 text-sm"><span class="iconify text-lg" data-icon="{% if active_page == 'exams' %}solar:pen-2-bold{% else %}solar:pen-2-outline{% endif %}"></span> Exams</span>
                 <span class="text-xs text-slate-400">Results</span>
             </a>
             <a href="{{ url_for('profile') }}" class="minimal-nav-item w-full items-center justify-between{% if active_page == 'profile' %} active{% endif %}">
-                <span class="flex items-center gap-3 text-sm"><span class="text-lg">👤</span> Profile</span>
+                <span class="flex items-center gap-3 text-sm"><span class="iconify text-lg" data-icon="{% if active_page == 'profile' %}solar:user-bold{% else %}solar:user-outline{% endif %}"></span> Profile</span>
                 <span class="text-xs text-slate-400">Account</span>
             </a>
         </nav>
@@ -233,7 +234,7 @@
     <main class="flex flex-col min-w-0 min-h-screen">
         <header class="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200 px-6 md:px-8 py-4 flex items-center justify-between">
             <div class="flex items-center gap-4">
-                <button data-mobile-nav-toggle class="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-all" aria-label="Open menu" aria-expanded="false">☰</button>
+                <button data-mobile-nav-toggle class="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-all" aria-label="Open menu" aria-expanded="false"><span class="iconify text-xl" data-icon="solar:hamburger-menu-outline"></span></button>
                 <div>
                     <h1 id="headerTitle" class="text-xl font-semibold text-slate-900">{{ page_title }}</h1>
                     <p id="headerSubtitle" class="text-xs text-slate-500"{% if active_page == 'dashboard' %} data-autodate="true"{% endif %}>{{ page_subtitle }}</p>
@@ -260,7 +261,7 @@
             </div>
             <div class="flex items-center gap-3">
                 <div class="hidden lg:flex items-center minimal-input px-4 py-2">
-                    <span class="text-slate-400 mr-2">🔍</span>
+                    <span class="iconify text-slate-400 mr-2" data-icon="solar:magnifer-linear"></span>
                     <input type="text" placeholder="Search resources, assignments..." class="bg-transparent outline-none text-sm w-64 placeholder:text-slate-400">
                 </div>
                 <a class="minimal-avatar w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-slate-700 text-sm font-medium cursor-pointer border border-slate-200" href="{{ url_for('profile') }}">{{ (student.name.split(' ')[0][0] ~ student.name.split(' ')[-1][0]) if student and student.name and (student.name.split(' ')|length) > 1 else 'AJ' }}</a>
@@ -274,31 +275,31 @@
         <nav class="md:hidden sticky bottom-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-3 flex items-center justify-between z-30">
             <a href="{{ url_for('dashboard') }}" class="flex flex-col items-center gap-1 group">
                 <div class="w-12 h-12 rounded-xl flex items-center justify-center{% if active_page == 'dashboard' %} bg-indigo-50 text-indigo-600{% else %} bg-slate-50 text-slate-600{% endif %}">
-                    <span class="text-xl">🏠</span>
+                    <span class="iconify text-xl" data-icon="{% if active_page == 'dashboard' %}solar:home-2-bold{% else %}solar:home-2-outline{% endif %}"></span>
                 </div>
                 <span class="text-xs font-medium{% if active_page == 'dashboard' %} text-indigo-600{% else %} text-slate-500{% endif %}">Home</span>
             </a>
             <a href="{{ url_for('news') }}" class="flex flex-col items-center gap-1 group">
                 <div class="w-12 h-12 rounded-xl flex items-center justify-center{% if active_page == 'news' %} bg-indigo-50 text-indigo-600{% else %} bg-slate-50 text-slate-600{% endif %}">
-                    <span class="text-xl">📰</span>
+                    <span class="iconify text-xl" data-icon="{% if active_page == 'news' %}solar:document-text-bold{% else %}solar:document-text-outline{% endif %}"></span>
                 </div>
                 <span class="text-xs font-medium{% if active_page == 'news' %} text-indigo-600{% else %} text-slate-500{% endif %}">News</span>
             </a>
             <a href="{{ url_for('schedules') }}" class="flex flex-col items-center gap-1 group">
                 <div class="w-12 h-12 rounded-xl flex items-center justify-center{% if active_page == 'schedules' %} bg-indigo-50 text-indigo-600{% else %} bg-slate-50 text-slate-600{% endif %}">
-                    <span class="text-xl">📅</span>
+                    <span class="iconify text-xl" data-icon="{% if active_page == 'schedules' %}solar:calendar-bold{% else %}solar:calendar-outline{% endif %}"></span>
                 </div>
                 <span class="text-xs font-medium{% if active_page == 'schedules' %} text-indigo-600{% else %} text-slate-500{% endif %}">Schedule</span>
             </a>
             <a href="{{ url_for('exams') }}" class="flex flex-col items-center gap-1 group">
                 <div class="w-12 h-12 rounded-xl flex items-center justify-center{% if active_page == 'exams' %} bg-indigo-50 text-indigo-600{% else %} bg-slate-50 text-slate-600{% endif %}">
-                    <span class="text-xl">📝</span>
+                    <span class="iconify text-xl" data-icon="{% if active_page == 'exams' %}solar:pen-2-bold{% else %}solar:pen-2-outline{% endif %}"></span>
                 </div>
                 <span class="text-xs font-medium{% if active_page == 'exams' %} text-indigo-600{% else %} text-slate-500{% endif %}">Exams</span>
             </a>
             <a href="{{ url_for('profile') }}" class="flex flex-col items-center gap-1 group">
                 <div class="w-12 h-12 rounded-xl flex items-center justify-center{% if active_page == 'profile' %} bg-indigo-50 text-indigo-600{% else %} bg-slate-50 text-slate-600{% endif %}">
-                    <span class="text-xl">👤</span>
+                    <span class="iconify text-xl" data-icon="{% if active_page == 'profile' %}solar:user-bold{% else %}solar:user-outline{% endif %}"></span>
                 </div>
                 <span class="text-xs font-medium{% if active_page == 'profile' %} text-indigo-600{% else %} text-slate-500{% endif %}">Profile</span>
             </a>

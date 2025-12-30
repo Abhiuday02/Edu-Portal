@@ -44,7 +44,9 @@
                     {% for p in immediate_attention %}
                         <div class="p-3 bg-white/10 rounded-xl">
                             <div class="flex gap-3">
-                                <div class="shrink-0 w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center text-lg">🚨</div>
+                                <div class="shrink-0 w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+                                    <span class="iconify text-xl" data-icon="solar:danger-triangle-bold"></span>
+                                </div>
                                 <div class="min-w-0 flex-1">
                                     <div class="flex items-start justify-between gap-3">
                                         <p class="text-sm font-semibold leading-snug break-words">{{ p.heading }}</p>
@@ -65,33 +67,33 @@
                     </div>
                 {% endif %}
             </div>
-            <a class="mt-6 block w-full py-3 rounded-xl bg-white text-indigo-700 text-sm font-medium hover:bg-slate-100 transition-all text-center" href="{{ url_for('news') }}">View All Notifications</a>
+            <a class="mt-6 block w-full py-3 rounded-xl bg-white text-indigo-700 text-sm font-medium hover:bg-slate-100 transition-all text-center inline-flex items-center justify-center gap-2" href="{{ url_for('news') }}"><span class="iconify text-base" data-icon="solar:bell-bold"></span> View All Notifications</a>
         </div>
     </div>
 
     <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
         <a class="minimal-card p-5 text-center hover:shadow-md transition-all cursor-pointer group" href="{{ url_for('news') }}">
-            <div class="text-2xl mb-3 group-hover:scale-110 transition-transform">📢</div>
+            <div class="text-2xl mb-3 group-hover:scale-110 transition-transform"><span class="iconify" data-icon="solar:bell-linear"></span></div>
             <p class="text-sm font-medium text-slate-700">Notifications</p>
             <p class="text-xs text-slate-400 mt-1">Latest updates</p>
         </a>
         <a class="minimal-card p-5 text-center hover:shadow-md transition-all cursor-pointer group" href="{{ url_for('schedules') }}">
-            <div class="text-2xl mb-3 group-hover:scale-110 transition-transform">📅</div>
+            <div class="text-2xl mb-3 group-hover:scale-110 transition-transform"><span class="iconify" data-icon="solar:calendar-linear"></span></div>
             <p class="text-sm font-medium text-slate-700">Calendar</p>
             <p class="text-xs text-slate-400 mt-1">Timetable</p>
         </a>
         <a class="minimal-card p-5 text-center hover:shadow-md transition-all cursor-pointer group" href="{{ url_for('news', tag='Assignments') }}">
-            <div class="text-2xl mb-3 group-hover:scale-110 transition-transform">📝</div>
+            <div class="text-2xl mb-3 group-hover:scale-110 transition-transform"><span class="iconify" data-icon="solar:pen-2-linear"></span></div>
             <p class="text-sm font-medium text-slate-700">Assignments</p>
             <p class="text-xs text-slate-400 mt-1">Pending tasks</p>
         </a>
         <a class="minimal-card p-5 text-center hover:shadow-md transition-all cursor-pointer group" href="{{ url_for('exams') }}">
-            <div class="text-2xl mb-3 group-hover:scale-110 transition-transform">🏆</div>
+            <div class="text-2xl mb-3 group-hover:scale-110 transition-transform"><span class="iconify" data-icon="solar:cup-star-linear"></span></div>
             <p class="text-sm font-medium text-slate-700">Results</p>
             <p class="text-xs text-slate-400 mt-1">Performance</p>
         </a>
         <a class="minimal-card p-5 text-center hover:shadow-md transition-all cursor-pointer group" href="{{ url_for('library') }}">
-            <div class="text-2xl mb-3 group-hover:scale-110 transition-transform">📂</div>
+            <div class="text-2xl mb-3 group-hover:scale-110 transition-transform"><span class="iconify" data-icon="solar:folder-with-files-linear"></span></div>
             <p class="text-sm font-medium text-slate-700">Study Material</p>
             <p class="text-xs text-slate-400 mt-1">Resources</p>
         </a>
@@ -118,7 +120,14 @@
                     {% set tag_list = (p.tags.split(',') if p.tags else []) %}
                     <div class="p-4 rounded-xl border {% if cat == 'URGENT' %}border-rose-200 bg-gradient-to-r from-rose-50 to-white{% elif cat == 'EVENT' %}border-amber-200 bg-gradient-to-r from-amber-50 to-white{% else %}border-slate-200 bg-white{% endif %} flex flex-col md:flex-row gap-4 items-start">
                         <div class="minimal-badge {% if cat == 'URGENT' %}bg-rose-100 text-rose-700{% elif cat == 'EVENT' %}bg-amber-100 text-amber-700{% else %}bg-slate-100 text-slate-700{% endif %} flex items-center gap-1.5">
-                            {% if cat == 'URGENT' %}<span>🚨</span>{% elif cat == 'EVENT' %}<span>🎉</span>{% else %}<span>ℹ️</span>{% endif %} {{ cat }}
+                            {% if cat == 'URGENT' %}
+                                <span class="iconify" data-icon="solar:danger-triangle-bold"></span>
+                            {% elif cat == 'EVENT' %}
+                                <span class="iconify" data-icon="solar:calendar-linear"></span>
+                            {% else %}
+                                <span class="iconify" data-icon="solar:info-circle-bold"></span>
+                            {% endif %}
+                            {{ cat }}
                         </div>
                         <div class="flex-1">
                             <div class="flex flex-col md:flex-row md:items-center justify-between gap-1 mb-2">
@@ -127,7 +136,7 @@
                             </div>
                             <p class="text-sm text-slate-600 leading-relaxed mb-3">{{ p.body }}</p>
                             <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                                <span class="flex items-center gap-1">👤 {{ p.sender }}</span>
+                                <span class="flex items-center gap-2"><span class="iconify" data-icon="solar:user-linear"></span> {{ p.sender }}</span>
                                 <span class="w-1 h-1 rounded-full bg-slate-300"></span>
                                 <span class="minimal-badge bg-indigo-50 text-indigo-700">{{ p.news_type }}</span>
                                 <span class="minimal-badge bg-slate-100 text-slate-600">{{ p.priority }}</span>

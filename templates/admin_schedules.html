@@ -26,7 +26,7 @@
             <input name="title" type="text" placeholder="Title" class="admin-input" />
             <input name="description" type="text" placeholder="Description (optional)" class="admin-input" />
             <div class="md:col-span-2 flex justify-end">
-                <button type="submit" class="admin-btn admin-btn-primary">Add</button>
+                <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:add-square-bold"></span> Add</button>
             </div>
         </form>
 
@@ -83,10 +83,10 @@
                                     <input name="description" type="text" value="{{ it.description }}" class="admin-input w-full" />
                                 </div>
                                 <div class="sm:col-span-2 flex items-center justify-end gap-2 pt-1">
-                                    <button type="submit" class="admin-btn admin-btn-soft text-xs">Update</button>
+                                    <button type="submit" class="admin-btn admin-btn-soft text-xs inline-flex items-center gap-2"><span class="iconify text-sm text-amber-600" data-icon="solar:pen-2-outline"></span> Update</button>
                             </form>
                                     <form method="post" action="{{ url_for('admin_calendar_item_delete', item_id=it.id) }}" onsubmit="return confirm('Delete this item?');">
-                                        <button type="submit" class="admin-btn admin-btn-danger text-xs">Delete</button>
+                                        <button type="submit" class="admin-btn admin-btn-danger text-xs inline-flex items-center gap-2"><span class="iconify text-sm text-rose-200" data-icon="solar:trash-bin-trash-outline"></span> Delete</button>
                                     </form>
                                 </div>
                         </div>
@@ -114,7 +114,7 @@
                         </option>
                     {% endfor %}
                 </select>
-                <button type="submit" class="admin-btn admin-btn-primary">Load</button>
+                <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:refresh-outline"></span> Load</button>
             </form>
 
             <details class="mt-4">
@@ -125,7 +125,7 @@
                     <input name="program" type="text" placeholder="Program (optional)" class="admin-input" />
                     <input name="department" type="text" placeholder="Department (optional)" class="admin-input" />
                     <div class="sm:col-span-2 flex justify-end pt-1">
-                        <button type="submit" class="admin-btn admin-btn-soft">Create</button>
+                        <button type="submit" class="admin-btn admin-btn-soft inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:add-square-outline"></span> Create</button>
                     </div>
                 </form>
             </details>
@@ -149,7 +149,7 @@
             <input name="start_time" type="time" class="admin-input" />
             <input name="end_time" type="time" class="admin-input" />
             <div class="md:col-span-2 flex justify-end">
-                <button type="submit" class="admin-btn admin-btn-primary">Add Timetable Row</button>
+                <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:add-square-bold"></span> Add Timetable Row</button>
             </div>
         </form>
 
@@ -183,7 +183,7 @@
 
                             <div class="flex items-center justify-end gap-2 mt-4">
                                 <form method="post" action="{{ url_for('admin_timetable_delete', row_id=r.id, schedule_id=(selected_schedule_id if selected_schedule_id is defined else 1)) }}" onsubmit="return confirm('Delete this timetable row?');">
-                                    <button type="submit" class="admin-btn admin-btn-danger text-xs">Delete</button>
+                                    <button type="submit" class="admin-btn admin-btn-danger text-xs inline-flex items-center gap-2"><span class="iconify text-sm text-rose-200" data-icon="solar:trash-bin-trash-outline"></span> Delete</button>
                                 </form>
                             </div>
                         </div>
