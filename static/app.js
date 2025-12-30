@@ -289,11 +289,62 @@ function initScheduleCalendarSheet() {
     window.addEventListener('mouseup', onEnd);
 }
 
+function initMobileNav() {
+    const toggles = Array.from(document.querySelectorAll('[data-mobile-nav-toggle]'));
+    const drawer = document.querySelector('[data-mobile-nav-drawer]');
+    const backdrop = document.querySelector('[data-mobile-nav-backdrop]');
+
+    if (!toggles.length || !drawer || !backdrop) {
+        return;
+    }
+
+    function setExpanded(value) {
+        toggles.forEach((t) => t.setAttribute('aria-expanded', value ? 'true' : 'false'));
+    }
+
+    function open() {
+        drawer.classList.remove('-translate-x-full');
+        backdrop.classList.remove('opacity-0', 'pointer-events-none');
+        backdrop.classList.add('opacity-100');
+        setExpanded(true);
+    }
+
+    function close() {
+        drawer.classList.add('-translate-x-full');
+        backdrop.classList.add('opacity-0', 'pointer-events-none');
+        backdrop.classList.remove('opacity-100');
+        setExpanded(false);
+    }
+
+    function toggleMenu() {
+        const isOpen = !drawer.classList.contains('-translate-x-full');
+        if (isOpen) {
+            close();
+        } else {
+            open();
+        }
+    }
+
+    toggles.forEach((t) => t.addEventListener('click', toggleMenu));
+    backdrop.addEventListener('click', close);
+
+    drawer.querySelectorAll('a').forEach((a) => {
+        a.addEventListener('click', close);
+    });
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            close();
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     generateAttendance();
     applyAttendanceRings();
     initWeeklyTimetable();
     initScheduleCalendarSheet();
+    initMobileNav();
 
     const subtitle = document.getElementById('headerSubtitle');
     if (subtitle && subtitle.dataset.autodate === 'true') {
