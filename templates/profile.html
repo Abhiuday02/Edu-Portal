@@ -87,30 +87,21 @@
     <div class="minimal-card p-6">
         <div class="flex items-center justify-between mb-4">
             <div>
-                <h3 class="text-lg font-semibold text-slate-900">Quick Stats</h3>
-                <p class="text-sm text-slate-500 mt-1">At a glance</p>
+                <h3 class="text-lg font-semibold text-slate-900">Vault Folders</h3>
+                <p class="text-sm text-slate-500 mt-1">Your document folders</p>
             </div>
-            <span class="minimal-badge bg-slate-100 text-slate-700">STATS</span>
+            <a href="{{ url_for('vault') }}" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium inline-flex items-center justify-center gap-2"><span class="iconify text-base" data-icon="solar:folder-with-files-bold"></span> Open Vault</a>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="p-4 rounded-xl border border-slate-200 bg-white">
-                <p class="text-xs text-slate-500">Attendance</p>
-                <p class="text-xl font-semibold text-slate-900 mt-2">{{ student.attendance_percent if student else 0 }}%</p>
+        {% if vault_folders %}
+            <div class="flex flex-wrap gap-2">
+                {% for f in vault_folders %}
+                    <a href="{{ url_for('vault', folder_id=f.id) }}" class="minimal-badge bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all">{{ f.name }}</a>
+                {% endfor %}
             </div>
-            <div class="p-4 rounded-xl border border-slate-200 bg-white">
-                <p class="text-xs text-slate-500">CGPA</p>
-                <p class="text-xl font-semibold text-slate-900 mt-2">{{ '%.2f'|format(cgpa) if cgpa is not none else '-' }}</p>
-            </div>
-            <div class="p-4 rounded-xl border border-slate-200 bg-white">
-                <p class="text-xs text-slate-500">Library Books</p>
-                <p class="text-xl font-semibold text-slate-900 mt-2">{{ issued_books }}</p>
-            </div>
-            <div class="p-4 rounded-xl border border-slate-200 bg-white">
-                <p class="text-xs text-slate-500">Pending Dues</p>
-                <p class="text-xl font-semibold text-slate-900 mt-2">₹{{ pending_dues }}</p>
-            </div>
-        </div>
+        {% else %}
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-600">No folders yet. Create your first folder in Vault.</div>
+        {% endif %}
     </div>
 
     <div class="minimal-card p-6">

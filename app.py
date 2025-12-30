@@ -1,4 +1,4 @@
-from flask import Flask, g, render_template, request, redirect, url_for, render_template_string, session
+from flask import Flask, g, render_template, request, redirect, url_for, render_template_string, session, abort, send_file
 from datetime import datetime
 from pathlib import Path
 import os
@@ -18,6 +18,7 @@ app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
 DB_PATH = Path(__file__).with_name("eduportal.db")
 
 NEWS_UPLOAD_DIR = Path(__file__).with_name("static") / "uploads" / "news"
+VAULT_UPLOAD_DIR = Path(__file__).with_name("uploads") / "vault"
 
 
 def save_news_attachment(upload) -> tuple[str, str, str] | None:
@@ -50,6 +51,29 @@ def ensure_news_posts_rich_schema(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE news_posts ADD COLUMN attachment_name TEXT")
     if "attachment_mime" not in cols:
         db.execute("ALTER TABLE news_posts ADD COLUMN attachment_mime TEXT")
+
+
+def save_vault_file(upload, student_id: int) -> tuple[str, str, str, int] | None:
+    if upload is None:
+        return None
+    original = (upload.filename or "").strip()
+    if not original:
+        return None
+
+    safe = secure_filename(original)
+    if not safe:
+        return None
+
+    VAULT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    unique = f"{uuid.uuid4().hex}_{safe}"
+    abs_path = VAULT_UPLOAD_DIR / str(int(student_id)) / unique
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+    upload.save(str(abs_path))
+
+    rel_path = f"vault/{int(student_id)}/{unique}"
+    mime = (getattr(upload, "mimetype", None) or "").strip()
+    size_bytes = int(abs_path.stat().st_size) if abs_path.exists() else 0
+    return (rel_path, original, mime, size_bytes)
 
 
 def sanitize_news_html(html: str) -> str:
@@ -127,6 +151,13 @@ def get_current_admin_id() -> int | None:
         return int(aid)
     except Exception:
         return None
+
+
+def get_safe_next_url(default_endpoint: str = "dashboard") -> str:
+    next_url = (request.args.get("next") or request.form.get("next") or "").strip()
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return next_url
+    return url_for(default_endpoint)
 
 
 def login_required(fn):
@@ -456,6 +487,28 @@ def init_db() -> None:
                 uploader TEXT NOT NULL,
                 uploaded_at TEXT NOT NULL,
                 tags TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS vault_folders (
+                id INTEGER PRIMARY KEY,
+                student_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(student_id, name),
+                FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS vault_files (
+                id INTEGER PRIMARY KEY,
+                student_id INTEGER NOT NULL,
+                folder_id INTEGER NOT NULL,
+                original_name TEXT NOT NULL,
+                stored_path TEXT NOT NULL,
+                mime TEXT,
+                size_bytes INTEGER NOT NULL DEFAULT 0,
+                uploaded_at TEXT NOT NULL,
+                FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE,
+                FOREIGN KEY(folder_id) REFERENCES vault_folders(id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS exam_results (
@@ -2699,16 +2752,21 @@ def dashboard():
     sid = get_current_student_id()
     student = db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
 
-    heatmap = db.execute(
+    folders = db.execute(
+        "SELECT * FROM vault_folders WHERE student_id = ? ORDER BY datetime(created_at) DESC",
+        (sid,),
+    ).fetchall()
+    files = db.execute(
         """
-        SELECT att_date, level FROM attendance_heatmap
-        WHERE student_id = ?
-        ORDER BY date(att_date) ASC
-        LIMIT 196
+        SELECT vf.*, vfo.name AS folder_name
+        FROM vault_files vf
+        JOIN vault_folders vfo ON vfo.id = vf.folder_id
+        WHERE vf.student_id = ?
+        ORDER BY datetime(vf.uploaded_at) DESC
+        LIMIT 12
         """,
         (sid,),
     ).fetchall()
-    heatmap_levels = [int(r["level"]) for r in heatmap]
 
     immediate_attention = db.execute(
         """
@@ -2733,9 +2791,186 @@ def dashboard():
         page_subtitle=f"Welcome back, {student['name'].split(' ')[0]}" if student else "Welcome back",
         active_page="dashboard",
         student=student,
-        heatmap_levels=heatmap_levels,
+        vault_folders=folders,
+        vault_files=files,
         immediate_attention=immediate_attention,
         announcements=announcements,
+    )
+
+
+@app.post("/vault/folders")
+@login_required
+def vault_folder_create():
+    sid = get_current_student_id()
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        return redirect(get_safe_next_url("dashboard"))
+
+    db = get_db()
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    try:
+        db.execute(
+            "INSERT INTO vault_folders (student_id, name, created_at) VALUES (?, ?, ?)",
+            (sid, name, now),
+        )
+        db.commit()
+    except sqlite3.IntegrityError:
+        pass
+    return redirect(get_safe_next_url("dashboard"))
+
+
+@app.post("/vault/folders/<int:folder_id>/delete")
+@login_required
+def vault_folder_delete(folder_id: int):
+    sid = get_current_student_id()
+    db = get_db()
+    db.execute(
+        "DELETE FROM vault_folders WHERE id = ? AND student_id = ?",
+        (int(folder_id), sid),
+    )
+    db.commit()
+    return redirect(get_safe_next_url("dashboard"))
+
+
+@app.post("/vault/files")
+@login_required
+def vault_file_upload():
+    sid = get_current_student_id()
+    try:
+        folder_id = int(request.form.get("folder_id") or "0")
+    except Exception:
+        folder_id = 0
+    upload = request.files.get("file")
+    if not folder_id or upload is None or not (upload.filename or "").strip():
+        return redirect(get_safe_next_url("dashboard"))
+
+    db = get_db()
+    folder = db.execute(
+        "SELECT * FROM vault_folders WHERE id = ? AND student_id = ?",
+        (folder_id, sid),
+    ).fetchone()
+    if not folder:
+        return redirect(get_safe_next_url("dashboard"))
+
+    saved = save_vault_file(upload, int(sid))
+    if saved is None:
+        return redirect(get_safe_next_url("dashboard"))
+    rel_path, original, mime, size_bytes = saved
+    now = datetime.utcnow().isoformat(timespec="seconds")
+
+    db.execute(
+        """
+        INSERT INTO vault_files (student_id, folder_id, original_name, stored_path, mime, size_bytes, uploaded_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (sid, folder_id, original, rel_path, mime, size_bytes, now),
+    )
+    db.commit()
+    return redirect(get_safe_next_url("dashboard"))
+
+
+@app.get("/vault/files/<int:file_id>/download")
+@login_required
+def vault_file_download(file_id: int):
+    sid = get_current_student_id()
+    db = get_db()
+    f = db.execute(
+        "SELECT * FROM vault_files WHERE id = ? AND student_id = ?",
+        (int(file_id), sid),
+    ).fetchone()
+    if not f:
+        abort(404)
+
+    stored = (f["stored_path"] or "").strip()
+    if not stored.startswith("vault/"):
+        abort(404)
+    abs_path = Path(__file__).with_name("uploads") / stored
+    if not abs_path.exists() or not abs_path.is_file():
+        abort(404)
+
+    return send_file(
+        str(abs_path),
+        as_attachment=True,
+        download_name=f["original_name"],
+        mimetype=(f["mime"] or None),
+    )
+
+
+@app.post("/vault/files/<int:file_id>/delete")
+@login_required
+def vault_file_delete(file_id: int):
+    sid = get_current_student_id()
+    db = get_db()
+    f = db.execute(
+        "SELECT * FROM vault_files WHERE id = ? AND student_id = ?",
+        (int(file_id), sid),
+    ).fetchone()
+    if not f:
+        return redirect(get_safe_next_url("dashboard"))
+
+    stored = (f["stored_path"] or "").strip()
+    if stored.startswith("vault/"):
+        abs_path = Path(__file__).with_name("uploads") / stored
+        try:
+            if abs_path.exists() and abs_path.is_file():
+                abs_path.unlink()
+        except Exception:
+            pass
+
+    db.execute("DELETE FROM vault_files WHERE id = ? AND student_id = ?", (int(file_id), sid))
+    db.commit()
+    return redirect(get_safe_next_url("dashboard"))
+
+
+@app.get("/vault")
+@login_required
+def vault():
+    db = get_db()
+    sid = get_current_student_id()
+    student = db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+
+    folders = db.execute(
+        "SELECT * FROM vault_folders WHERE student_id = ? ORDER BY datetime(created_at) DESC",
+        (sid,),
+    ).fetchall()
+
+    selected_folder_id = None
+    try:
+        selected_folder_id = int(request.args.get("folder_id") or 0) or None
+    except Exception:
+        selected_folder_id = None
+
+    if selected_folder_id is None and folders:
+        selected_folder_id = int(folders[0]["id"])
+
+    folder = None
+    files = []
+    if selected_folder_id is not None:
+        folder = db.execute(
+            "SELECT * FROM vault_folders WHERE id = ? AND student_id = ?",
+            (int(selected_folder_id), sid),
+        ).fetchone()
+        if folder:
+            files = db.execute(
+                """
+                SELECT vf.*, vfo.name AS folder_name
+                FROM vault_files vf
+                JOIN vault_folders vfo ON vfo.id = vf.folder_id
+                WHERE vf.student_id = ? AND vf.folder_id = ?
+                ORDER BY datetime(vf.uploaded_at) DESC
+                """,
+                (sid, int(selected_folder_id)),
+            ).fetchall()
+
+    return render_template(
+        "vault.html",
+        page_title="Vault",
+        page_subtitle="Your private documents",
+        active_page="vault",
+        student=student,
+        vault_folders=folders,
+        selected_folder=folder,
+        vault_files=files,
     )
 
 
@@ -3304,26 +3539,11 @@ def profile():
         program = db.execute("SELECT * FROM programs WHERE id = ?", (int(student_program["program_id"]),)).fetchone()
 
     profile = db.execute("SELECT * FROM student_profile WHERE student_id = ?", (sid,)).fetchone()
-    dues = db.execute("SELECT * FROM student_dues WHERE student_id = ?", (sid,)).fetchone()
-    issued_books = db.execute(
-        "SELECT COUNT(*) FROM library_books WHERE status = 'ISSUED'"
-    ).fetchone()[0]
 
-    cgpa = None
-    if student_program:
-        latest = db.execute(
-            """
-            SELECT sgpa FROM semester_results
-            WHERE student_id = ? AND program_id = ?
-            ORDER BY declared_on DESC
-            LIMIT 1
-            """,
-            (sid, int(student_program["program_id"])),
-        ).fetchone()
-        if latest:
-            cgpa = float(latest["sgpa"])
-
-    pending_dues = int(dues["pending_amount"]) if dues else 0
+    vault_folders = db.execute(
+        "SELECT * FROM vault_folders WHERE student_id = ? ORDER BY datetime(created_at) DESC",
+        (sid,),
+    ).fetchall()
     return render_template(
         "profile.html",
         page_title="My Profile",
@@ -3332,9 +3552,7 @@ def profile():
         student=student,
         program=program,
         profile=profile,
-        cgpa=cgpa,
-        issued_books=issued_books,
-        pending_dues=pending_dues,
+        vault_folders=vault_folders,
     )
 
 
