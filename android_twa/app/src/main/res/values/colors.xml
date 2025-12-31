@@ -5,13 +5,17 @@
     
     <!-- Light theme colors -->
     <color name="md_theme_light_primary">#667eea</color>
-    <color name="md_theme_light_onPrimary">#FFFFFF</color>
-    <color name="md_theme_light_primaryContainer">#E0E7FF</color>
-    <color name="md_theme_light_onPrimaryContainer">#1E3A8A</color>
+    <color name="md_theme_light_onPrimary">#ffffff</color>
+    <color name="md_theme_light_primaryContainer">#e8eaf6</color>
+    <color name="md_theme_light_onPrimaryContainer">#1a237e</color>
     <color name="md_theme_light_secondary">#764ba2</color>
-    <color name="md_theme_light_onSecondary">#FFFFFF</color>
-    <color name="md_theme_light_secondaryContainer">#F3E8FF</color>
-    <color name="md_theme_light_onSecondaryContainer">#4C1D95</color>
-    <color name="md_theme_light_background">#F8FAFC</color>
-    <color name="md_theme_light_onBackground">#1E293B</color>
+    <color name="md_theme_light_onSecondary">#ffffff</color>
+    <color name="md_theme_light_secondaryContainer">#f3e5f5</color>
+    <color name="md_theme_light_onSecondaryContainer">#4a148c</color>
+    <color name="md_theme_light_background">#fafafa</color>
+    <color name="md_theme_light_onBackground">#1c1c1c</color>
+    <color name="md_theme_light_surface">#ffffff</color>
+    <color name="md_theme_light_onSurface">#1c1c1c</color>
+    <color name="md_theme_light_surfaceVariant">#e8eaf6</color>
+    <color name="md_theme_light_onSurfaceVariant">#424242</color>
 </resources>

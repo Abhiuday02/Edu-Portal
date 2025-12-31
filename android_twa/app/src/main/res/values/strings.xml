@@ -2,8 +2,8 @@
     <string name="app_name">EduPortal</string>
     
     <!-- TWA Configuration -->
-    <string name="launch_url">http://localhost:5000</string>
-    <string name="host_name">localhost</string>
+    <string name="launch_url">https://ietddugu.pythonanywhere.com</string>
+    <string name="host_name">ietddugu.pythonanywhere.com</string>
     
     <!-- Asset Statements for Digital Asset Links -->
     <string name="asset_statements">
@@ -11,7 +11,7 @@
             \"relation\": [\"delegate_permission/common.handle_all_urls\"],
             \"target\": {
                 \"namespace\": \"web\",
-                \"site\": \"http://localhost:5000\"
+                \"site\": \"https://ietddugu.pythonanywhere.com\"
             }
         }]
     </string>

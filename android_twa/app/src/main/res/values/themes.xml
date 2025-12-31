@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
-    <style name="Theme.EduPortalTWA" parent="Theme.Material3.DayNight">
+    <style name="Theme.EduPortalTWA" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Primary brand color. -->
         <item name="colorPrimary">@color/md_theme_light_primary</item>
         <item name="colorOnPrimary">@color/md_theme_light_onPrimary</item>
@@ -13,15 +13,8 @@
         <item name="colorSecondaryContainer">@color/md_theme_light_secondaryContainer</item>
         <item name="colorOnSecondaryContainer">@color/md_theme_light_onSecondaryContainer</item>
         <!-- Status bar and navigation bar colors -->
-        <item name="android:statusBarColor">@color/md_theme_light_background</item>
-        <item name="android:navigationBarColor">@color/md_theme_light_background</item>
-    </style>
-
-    <!-- Launcher theme with splash screen -->
-    <style name="Theme.LauncherActivity" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@color/md_theme_light_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
-        <item name="windowSplashScreenAnimationDuration">1000</item>
-        <item name="postSplashScreenTheme">@style/Theme.EduPortalTWA</item>
+        <item name="android:statusBarColor">@color/md_theme_light_surfaceVariant</item>
+        <item name="android:navigationBarColor">@color/md_theme_light_surfaceVariant</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>
