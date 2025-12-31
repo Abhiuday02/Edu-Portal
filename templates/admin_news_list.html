@@ -1,14 +1,16 @@
 {% extends "admin_base.html" %}
 
 {% block content %}
-<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-    <div class="flex-1">
-        <input id="adminNewsSearch" type="text" class="admin-input w-full" placeholder="Search news by heading, body, sender, tags...">
-        <p class="text-xs text-slate-500 mt-2">Showing <span id="adminNewsVisibleCount">0</span> of <span id="adminNewsTotalCount">0</span></p>
+<div class="mb-4">
+    <div class="flex flex-col md:flex-row md:items-center gap-3">
+        <div class="flex-1">
+            <input id="adminNewsSearch" type="text" class="admin-input w-full" placeholder="Search news by heading, body, sender, tags...">
+        </div>
+        <div class="flex items-center justify-end">
+            <button type="button" class="admin-btn admin-btn-primary inline-flex items-center gap-2" data-admin-news-new-open><span class="iconify text-base" data-icon="solar:add-square-bold"></span> New Post</button>
+        </div>
     </div>
-    <div class="flex items-center justify-end">
-        <button type="button" class="admin-btn admin-btn-primary inline-flex items-center gap-2" data-admin-news-new-open><span class="iconify text-base" data-icon="solar:add-square-bold"></span> New Post</button>
-    </div>
+    <p class="text-xs text-slate-500 mt-2">Showing <span id="adminNewsVisibleCount">0</span> of <span id="adminNewsTotalCount">0</span></p>
 </div>
 
 <div data-admin-news-new-backdrop class="fixed inset-0 bg-slate-900/40 opacity-0 pointer-events-none transition-opacity z-40"></div>
