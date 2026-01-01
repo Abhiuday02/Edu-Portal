@@ -445,6 +445,508 @@ function initMobileNav() {
     });
 }
 
+function initVaultBottomSheet() {
+    const actionBtn = document.getElementById('vaultActionBtn');
+    const bottomSheet = document.getElementById('vaultBottomSheet');
+    const backdrop = document.getElementById('vaultSheetBackdrop');
+    const sheet = document.getElementById('vaultSheet');
+    const closeBtn = document.getElementById('vaultSheetClose');
+    const handle = document.getElementById('vaultSheetHandle');
+    const createFolderTab = document.getElementById('createFolderTab');
+    const uploadFileTab = document.getElementById('uploadFileTab');
+    const createFolderContent = document.getElementById('createFolderContent');
+    const uploadFileContent = document.getElementById('uploadFileContent');
+
+    if (!actionBtn || !bottomSheet || !backdrop || !sheet || !closeBtn || !handle) {
+        return;
+    }
+
+    let scrollLockY = 0;
+    let currentTab = 0; // 0 = create folder, 1 = upload file
+
+    function lockScroll() {
+        scrollLockY = window.scrollY || 0;
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollLockY}px`;
+        document.body.style.left = '0';
+        document.body.style.right = '0';
+        document.body.style.width = '100%';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function unlockScroll() {
+        document.body.style.position = '';
+        const top = document.body.style.top;
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        const y = top ? Math.abs(parseInt(top, 10)) : scrollLockY;
+        window.scrollTo(0, Number.isFinite(y) ? y : 0);
+    }
+
+    function openSheet() {
+        lockScroll();
+        bottomSheet.classList.remove('opacity-0', 'pointer-events-none');
+        bottomSheet.classList.add('opacity-100');
+        sheet.classList.remove('translate-y-full');
+        backdrop.classList.remove('pointer-events-none');
+        backdrop.classList.add('pointer-events-auto');
+    }
+
+    function closeSheet() {
+        bottomSheet.classList.add('opacity-0', 'pointer-events-none');
+        bottomSheet.classList.remove('opacity-100');
+        sheet.classList.add('translate-y-full');
+        backdrop.classList.add('pointer-events-none');
+        backdrop.classList.remove('pointer-events-auto');
+        unlockScroll();
+    }
+
+    function switchTab(index) {
+        currentTab = index;
+        
+        // Update tab buttons
+        if (createFolderTab && uploadFileTab) {
+            const isActive = index === 0;
+            createFolderTab.classList.toggle('bg-white', isActive);
+            createFolderTab.classList.toggle('text-slate-900', isActive);
+            createFolderTab.classList.toggle('shadow-sm', isActive);
+            createFolderTab.classList.toggle('text-slate-600', !isActive);
+            
+            uploadFileTab.classList.toggle('bg-white', !isActive);
+            uploadFileTab.classList.toggle('text-slate-900', !isActive);
+            uploadFileTab.classList.toggle('shadow-sm', !isActive);
+            uploadFileTab.classList.toggle('text-slate-600', isActive);
+        }
+        
+        // Update content
+        if (createFolderContent && uploadFileContent) {
+            createFolderContent.classList.toggle('hidden', currentTab !== 0);
+            uploadFileContent.classList.toggle('hidden', currentTab !== 1);
+        }
+    }
+
+    // Event listeners
+    actionBtn.addEventListener('click', openSheet);
+    closeBtn.addEventListener('click', closeSheet);
+    backdrop.addEventListener('click', closeSheet);
+
+    if (createFolderTab) {
+        createFolderTab.addEventListener('click', () => switchTab(0));
+    }
+    
+    if (uploadFileTab) {
+        uploadFileTab.addEventListener('click', () => switchTab(1));
+    }
+
+    // Swipe gesture handling
+    let startX = 0;
+    let startY = 0;
+    let isDragging = false;
+    let dragStartTime = 0;
+
+    function handleTouchStart(e) {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        isDragging = true;
+        dragStartTime = Date.now();
+    }
+
+    function handleTouchMove(e) {
+        if (!isDragging) return;
+        
+        const currentX = e.touches[0].clientX;
+        const currentY = e.touches[0].clientY;
+        const deltaX = currentX - startX;
+        const deltaY = currentY - startY;
+        
+        // Check if it's a horizontal swipe (more horizontal than vertical)
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
+            // Prevent vertical scrolling during horizontal swipe
+            e.preventDefault();
+        }
+    }
+
+    function handleTouchEnd(e) {
+        if (!isDragging) return;
+        
+        const endX = e.changedTouches[0].clientX;
+        const endY = e.changedTouches[0].clientY;
+        const deltaX = endX - startX;
+        const deltaY = endY - startY;
+        const deltaTime = Date.now() - dragStartTime;
+        
+        // Check if it's a valid horizontal swipe
+        if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY) && deltaTime < 300) {
+            if (deltaX > 0 && currentTab === 1) {
+                // Swipe right - switch to create folder
+                switchTab(0);
+            } else if (deltaX < 0 && currentTab === 0) {
+                // Swipe left - switch to upload file
+                switchTab(1);
+            }
+        }
+        
+        isDragging = false;
+    }
+
+    // Add swipe listeners to the sheet content area
+    const contentArea = sheet.querySelector('.px-6.pb-6');
+    if (contentArea) {
+        contentArea.addEventListener('touchstart', handleTouchStart, { passive: true });
+        contentArea.addEventListener('touchmove', handleTouchMove, { passive: false });
+        contentArea.addEventListener('touchend', handleTouchEnd, { passive: true });
+    }
+
+    // Handle sheet drag to close
+    let dragStartY = 0;
+    let currentDragY = 0;
+    let isDraggingSheet = false;
+
+    function handleSheetDragStart(e) {
+        dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
+        currentDragY = dragStartY;
+        isDraggingSheet = true;
+        sheet.style.transition = 'none';
+        sheet.style.willChange = 'transform';
+    }
+
+    function handleSheetDragMove(e) {
+        if (!isDraggingSheet) return;
+        if (e.cancelable) {
+            e.preventDefault();
+        }
+        
+        currentDragY = e.touches ? e.touches[0].clientY : e.clientY;
+        const deltaY = Math.max(0, currentDragY - dragStartY);
+        sheet.style.transform = `translateY(${deltaY}px)`;
+    }
+
+    function handleSheetDragEnd() {
+        if (!isDraggingSheet) return;
+        
+        isDraggingSheet = false;
+        sheet.style.transition = '';
+        sheet.style.transform = '';
+        sheet.style.willChange = '';
+        
+        const deltaY = Math.max(0, currentDragY - dragStartY);
+        if (deltaY > 120) {
+            closeSheet();
+        }
+    }
+
+    handle.addEventListener('touchstart', handleSheetDragStart, { passive: true });
+    handle.addEventListener('touchmove', handleSheetDragMove, { passive: false });
+    handle.addEventListener('touchend', handleSheetDragEnd);
+
+    handle.addEventListener('mousedown', handleSheetDragStart);
+    window.addEventListener('mousemove', handleSheetDragMove);
+    window.addEventListener('mouseup', handleSheetDragEnd);
+
+    // Initialize first tab
+    switchTab(0);
+}
+
+function initVaultPageBottomSheet() {
+    const actionBtn = document.getElementById('vaultPageActionBtn');
+    const bottomSheet = document.getElementById('vaultPageBottomSheet');
+    const backdrop = document.getElementById('vaultPageSheetBackdrop');
+    const sheet = document.getElementById('vaultPageSheet');
+    const closeBtn = document.getElementById('vaultPageSheetClose');
+    const handle = document.getElementById('vaultPageSheetHandle');
+    const createFolderTab = document.getElementById('vaultPageCreateFolderTab');
+    const uploadFileTab = document.getElementById('vaultPageUploadFileTab');
+    const createFolderContent = document.getElementById('vaultPageCreateFolderContent');
+    const uploadFileContent = document.getElementById('vaultPageUploadFileContent');
+
+    if (!actionBtn || !bottomSheet || !backdrop || !sheet || !closeBtn || !handle) {
+        return;
+    }
+
+    let scrollLockY = 0;
+    let currentTab = 0;
+
+    function lockScroll() {
+        scrollLockY = window.scrollY || 0;
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollLockY}px`;
+        document.body.style.left = '0';
+        document.body.style.right = '0';
+        document.body.style.width = '100%';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function unlockScroll() {
+        document.body.style.position = '';
+        const top = document.body.style.top;
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        const y = top ? Math.abs(parseInt(top, 10)) : scrollLockY;
+        window.scrollTo(0, Number.isFinite(y) ? y : 0);
+    }
+
+    function openSheet() {
+        lockScroll();
+        bottomSheet.classList.remove('opacity-0', 'pointer-events-none');
+        bottomSheet.classList.add('opacity-100');
+        sheet.classList.remove('translate-y-full');
+        backdrop.classList.remove('pointer-events-none');
+        backdrop.classList.add('pointer-events-auto');
+    }
+
+    function closeSheet() {
+        bottomSheet.classList.add('opacity-0', 'pointer-events-none');
+        bottomSheet.classList.remove('opacity-100');
+        sheet.classList.add('translate-y-full');
+        backdrop.classList.add('pointer-events-none');
+        backdrop.classList.remove('pointer-events-auto');
+        unlockScroll();
+    }
+
+    function switchTab(index) {
+        currentTab = index;
+        if (createFolderTab && uploadFileTab) {
+            const isActive = index === 0;
+            createFolderTab.classList.toggle('bg-white', isActive);
+            createFolderTab.classList.toggle('text-slate-900', isActive);
+            createFolderTab.classList.toggle('shadow-sm', isActive);
+            createFolderTab.classList.toggle('text-slate-600', !isActive);
+
+            uploadFileTab.classList.toggle('bg-white', !isActive);
+            uploadFileTab.classList.toggle('text-slate-900', !isActive);
+            uploadFileTab.classList.toggle('shadow-sm', !isActive);
+            uploadFileTab.classList.toggle('text-slate-600', isActive);
+        }
+
+        if (createFolderContent && uploadFileContent) {
+            createFolderContent.classList.toggle('hidden', currentTab !== 0);
+            uploadFileContent.classList.toggle('hidden', currentTab !== 1);
+        }
+    }
+
+    actionBtn.addEventListener('click', openSheet);
+    closeBtn.addEventListener('click', closeSheet);
+    backdrop.addEventListener('click', closeSheet);
+
+    if (createFolderTab) {
+        createFolderTab.addEventListener('click', () => switchTab(0));
+    }
+    if (uploadFileTab) {
+        uploadFileTab.addEventListener('click', () => switchTab(1));
+    }
+
+    let dragStartY = 0;
+    let currentDragY = 0;
+    let isDraggingSheet = false;
+
+    function handleSheetDragStart(e) {
+        dragStartY = e.touches ? e.touches[0].clientY : e.clientY;
+        currentDragY = dragStartY;
+        isDraggingSheet = true;
+        sheet.style.transition = 'none';
+        sheet.style.willChange = 'transform';
+    }
+
+    function handleSheetDragMove(e) {
+        if (!isDraggingSheet) return;
+        if (e.cancelable) {
+            e.preventDefault();
+        }
+        currentDragY = e.touches ? e.touches[0].clientY : e.clientY;
+        const deltaY = Math.max(0, currentDragY - dragStartY);
+        sheet.style.transform = `translateY(${deltaY}px)`;
+    }
+
+    function handleSheetDragEnd() {
+        if (!isDraggingSheet) return;
+        isDraggingSheet = false;
+        const deltaY = Math.max(0, currentDragY - dragStartY);
+        sheet.style.transition = '';
+        sheet.style.transform = '';
+        sheet.style.willChange = '';
+        if (deltaY > 120) {
+            closeSheet();
+        }
+    }
+
+    handle.addEventListener('touchstart', handleSheetDragStart, { passive: true });
+    handle.addEventListener('touchmove', handleSheetDragMove, { passive: false });
+    handle.addEventListener('touchend', handleSheetDragEnd);
+
+    handle.addEventListener('mousedown', handleSheetDragStart);
+    window.addEventListener('mousemove', handleSheetDragMove);
+    window.addEventListener('mouseup', handleSheetDragEnd);
+
+    switchTab(0);
+}
+
+function initVaultFileManager() {
+    const input = document.getElementById('vaultSearch');
+    const list = document.getElementById('vaultFileList');
+    const totalEl = document.getElementById('vaultTotal');
+    const visibleEl = document.getElementById('vaultVisible');
+
+    if (!input || !list || !totalEl || !visibleEl) {
+        return;
+    }
+
+    const bulkBar = document.getElementById('vaultBulkBar');
+    const selectedCountEl = document.getElementById('vaultSelectedCount');
+    const selectAll = document.getElementById('vaultSelectAll');
+    const clearBtn = document.getElementById('vaultClearSelection');
+    const bulkDeleteForm = document.getElementById('vaultBulkDeleteForm');
+    const bulkMoveForm = document.getElementById('vaultBulkMoveForm');
+    const bulkCopyForm = document.getElementById('vaultBulkCopyForm');
+
+    const items = Array.from(list.querySelectorAll('[data-vault-file]'));
+    totalEl.textContent = String(items.length);
+
+    function getCheckboxes() {
+        return Array.from(list.querySelectorAll('.vault-file-checkbox'));
+    }
+
+    function selectedIds() {
+        return getCheckboxes()
+            .filter((c) => c.checked)
+            .map((c) => String(c.value || '').trim())
+            .filter(Boolean);
+    }
+
+    function clearDynamicInputs(form) {
+        if (!form) return;
+        form.querySelectorAll('input[data-vault-dyn="1"]').forEach((el) => el.remove());
+    }
+
+    function fillBulkForm(form) {
+        if (!form) return;
+        clearDynamicInputs(form);
+        selectedIds().forEach((id) => {
+            const inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'file_ids';
+            inp.value = id;
+            inp.setAttribute('data-vault-dyn', '1');
+            form.appendChild(inp);
+        });
+    }
+
+    function updateSelectionUI() {
+        const ids = selectedIds();
+        if (selectedCountEl) {
+            selectedCountEl.textContent = String(ids.length);
+        }
+        if (bulkBar) {
+            bulkBar.classList.toggle('hidden', ids.length === 0);
+        }
+        if (selectAll) {
+            const boxes = getCheckboxes();
+            const all = boxes.length > 0 && boxes.every((c) => c.checked);
+            const none = boxes.every((c) => !c.checked);
+            selectAll.indeterminate = !all && !none;
+            selectAll.checked = all;
+        }
+    }
+
+    function applyFilter() {
+        const q = (input.value || '').trim().toLowerCase();
+        let visible = 0;
+        items.forEach((el) => {
+            const hay = String(el.dataset.searchText || '');
+            const ok = !q || hay.includes(q);
+            el.style.display = ok ? '' : 'none';
+            if (ok) {
+                visible += 1;
+            }
+        });
+        visibleEl.textContent = String(visible);
+    }
+
+    input.addEventListener('input', applyFilter);
+    applyFilter();
+
+    list.addEventListener('change', (e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLInputElement)) return;
+        if (target.classList.contains('vault-file-checkbox')) {
+            updateSelectionUI();
+        }
+    });
+
+    if (selectAll) {
+        selectAll.addEventListener('change', () => {
+            const checked = !!selectAll.checked;
+            getCheckboxes().forEach((c) => {
+                c.checked = checked;
+            });
+            updateSelectionUI();
+        });
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            getCheckboxes().forEach((c) => {
+                c.checked = false;
+            });
+            updateSelectionUI();
+        });
+    }
+
+    function bindBulkForm(form) {
+        if (!form) return;
+        form.addEventListener('submit', () => fillBulkForm(form));
+    }
+    bindBulkForm(bulkDeleteForm);
+    bindBulkForm(bulkMoveForm);
+    bindBulkForm(bulkCopyForm);
+
+    async function copyText(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+            return;
+        }
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+    }
+
+    list.querySelectorAll('.vaultShareBtn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const row = btn.closest('[data-vault-file]');
+            if (!row) return;
+            const url = row.getAttribute('data-download-url') || '';
+            const name = row.querySelector('p')?.textContent?.trim() || 'Vault file';
+            const absUrl = new URL(url, window.location.origin).toString();
+            try {
+                if (navigator.share) {
+                    await navigator.share({ title: name, text: name, url: absUrl });
+                    return;
+                }
+            } catch {
+                // fall through to copy
+            }
+            try {
+                await copyText(absUrl);
+                window.alert('Link copied');
+            } catch {
+                window.prompt('Copy link:', absUrl);
+            }
+        });
+    });
+
+    updateSelectionUI();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     initPageProgress();
     generateAttendance();
@@ -452,6 +954,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initWeeklyTimetable();
     initScheduleCalendarSheet();
     initMobileNav();
+    initVaultBottomSheet();
+    initVaultPageBottomSheet();
+    initVaultFileManager();
 
     const subtitle = document.getElementById('headerSubtitle');
     if (subtitle && subtitle.dataset.autodate === 'true') {

@@ -2,6 +2,7 @@ from flask import Flask, g, render_template, request, redirect, url_for, render_
 from datetime import datetime
 from pathlib import Path
 import os
+import shutil
 import sqlite3
 import calendar
 from urllib.parse import quote
@@ -74,6 +75,24 @@ def save_vault_file(upload, student_id: int) -> tuple[str, str, str, int] | None
     mime = (getattr(upload, "mimetype", None) or "").strip()
     size_bytes = int(abs_path.stat().st_size) if abs_path.exists() else 0
     return (rel_path, original, mime, size_bytes)
+
+
+def get_vault_abs_path(stored_path: str) -> Path | None:
+    stored = (stored_path or "").strip()
+    if not stored.startswith("vault/"):
+        return None
+    return Path(__file__).with_name("uploads") / stored
+
+
+def delete_vault_physical_file(stored_path: str) -> None:
+    abs_path = get_vault_abs_path(stored_path)
+    if abs_path is None:
+        return
+    try:
+        if abs_path.exists() and abs_path.is_file():
+            abs_path.unlink()
+    except Exception:
+        pass
 
 
 def sanitize_news_html(html: str) -> str:
@@ -2998,6 +3017,14 @@ def vault_folder_create():
 def vault_folder_delete(folder_id: int):
     sid = get_current_student_id()
     db = get_db()
+
+    files = db.execute(
+        "SELECT stored_path FROM vault_files WHERE folder_id = ? AND student_id = ?",
+        (int(folder_id), sid),
+    ).fetchall()
+    for row in files:
+        delete_vault_physical_file(row["stored_path"])
+
     db.execute(
         "DELETE FROM vault_folders WHERE id = ? AND student_id = ?",
         (int(folder_id), sid),
@@ -3082,18 +3109,151 @@ def vault_file_delete(file_id: int):
     if not f:
         return redirect(get_safe_next_url("dashboard"))
 
-    stored = (f["stored_path"] or "").strip()
-    if stored.startswith("vault/"):
-        abs_path = Path(__file__).with_name("uploads") / stored
-        try:
-            if abs_path.exists() and abs_path.is_file():
-                abs_path.unlink()
-        except Exception:
-            pass
+    delete_vault_physical_file(f["stored_path"])
 
     db.execute("DELETE FROM vault_files WHERE id = ? AND student_id = ?", (int(file_id), sid))
     db.commit()
     return redirect(get_safe_next_url("dashboard"))
+
+
+@app.post("/vault/files/bulk-delete")
+@login_required
+def vault_files_bulk_delete():
+    sid = get_current_student_id()
+    raw_ids = request.form.getlist("file_ids")
+    file_ids: list[int] = []
+    for x in raw_ids:
+        try:
+            file_ids.append(int(x))
+        except Exception:
+            continue
+    if not file_ids:
+        return redirect(get_safe_next_url("vault"))
+
+    db = get_db()
+    q_marks = ",".join(["?"] * len(file_ids))
+    rows = db.execute(
+        f"SELECT id, stored_path FROM vault_files WHERE student_id = ? AND id IN ({q_marks})",
+        [sid, *file_ids],
+    ).fetchall()
+    for r in rows:
+        delete_vault_physical_file(r["stored_path"])
+
+    db.execute(
+        f"DELETE FROM vault_files WHERE student_id = ? AND id IN ({q_marks})",
+        [sid, *file_ids],
+    )
+    db.commit()
+    return redirect(get_safe_next_url("vault"))
+
+
+@app.post("/vault/files/bulk-move")
+@login_required
+def vault_files_bulk_move():
+    sid = get_current_student_id()
+    raw_ids = request.form.getlist("file_ids")
+    try:
+        target_folder_id = int(request.form.get("target_folder_id") or "0")
+    except Exception:
+        target_folder_id = 0
+
+    file_ids: list[int] = []
+    for x in raw_ids:
+        try:
+            file_ids.append(int(x))
+        except Exception:
+            continue
+    if not file_ids or not target_folder_id:
+        return redirect(get_safe_next_url("vault"))
+
+    db = get_db()
+    target = db.execute(
+        "SELECT id FROM vault_folders WHERE id = ? AND student_id = ?",
+        (int(target_folder_id), sid),
+    ).fetchone()
+    if not target:
+        return redirect(get_safe_next_url("vault"))
+
+    q_marks = ",".join(["?"] * len(file_ids))
+    db.execute(
+        f"UPDATE vault_files SET folder_id = ? WHERE student_id = ? AND id IN ({q_marks})",
+        [int(target_folder_id), sid, *file_ids],
+    )
+    db.commit()
+    return redirect(get_safe_next_url("vault"))
+
+
+@app.post("/vault/files/bulk-copy")
+@login_required
+def vault_files_bulk_copy():
+    sid = get_current_student_id()
+    raw_ids = request.form.getlist("file_ids")
+    try:
+        target_folder_id = int(request.form.get("target_folder_id") or "0")
+    except Exception:
+        target_folder_id = 0
+
+    file_ids: list[int] = []
+    for x in raw_ids:
+        try:
+            file_ids.append(int(x))
+        except Exception:
+            continue
+    if not file_ids or not target_folder_id:
+        return redirect(get_safe_next_url("vault"))
+
+    db = get_db()
+    target = db.execute(
+        "SELECT id FROM vault_folders WHERE id = ? AND student_id = ?",
+        (int(target_folder_id), sid),
+    ).fetchone()
+    if not target:
+        return redirect(get_safe_next_url("vault"))
+
+    q_marks = ",".join(["?"] * len(file_ids))
+    rows = db.execute(
+        f"SELECT * FROM vault_files WHERE student_id = ? AND id IN ({q_marks})",
+        [sid, *file_ids],
+    ).fetchall()
+
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    for f in rows:
+        src_abs = get_vault_abs_path(f["stored_path"])
+        if src_abs is None or not src_abs.exists() or not src_abs.is_file():
+            continue
+
+        original_name = (f["original_name"] or "").strip()
+        safe = secure_filename(original_name)
+        if not safe:
+            safe = f"file_{f['id']}"
+        unique = f"{uuid.uuid4().hex}_{safe}"
+        dst_abs = VAULT_UPLOAD_DIR / str(int(sid)) / unique
+        dst_abs.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copyfile(str(src_abs), str(dst_abs))
+        except Exception:
+            continue
+
+        rel_path = f"vault/{int(sid)}/{unique}"
+        size_bytes = int(dst_abs.stat().st_size) if dst_abs.exists() else int(f["size_bytes"] or 0)
+        db.execute(
+            """
+            INSERT INTO vault_files (student_id, folder_id, original_name, stored_path, mime, size_bytes, uploaded_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                sid,
+                int(target_folder_id),
+                original_name or safe,
+                rel_path,
+                (f["mime"] or None),
+                size_bytes,
+                now,
+            ),
+        )
+
+    db.commit()
+    return redirect(get_safe_next_url("vault"))
 
 
 @app.get("/vault")
