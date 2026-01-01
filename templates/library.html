@@ -2,7 +2,7 @@
 
 {% block content %}
 <section class="tab-content space-y-6">
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
             <h2 class="text-xl font-semibold text-slate-900">Digital Library</h2>
             <p class="text-sm text-slate-500 mt-1">Access E-books, Journals, and check your issued book status</p>
@@ -10,27 +10,32 @@
     </div>
 
     <div class="minimal-card p-6">
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div>
                 <h3 class="text-lg font-semibold text-slate-900">Resources</h3>
                 <p class="text-sm text-slate-500 mt-1">Notes, PDFs and study materials uploaded by faculty</p>
             </div>
-            <div class="flex items-center gap-2">
-                <span class="minimal-badge bg-slate-100 text-slate-700">PDF</span>
-                <button type="button" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium inline-flex items-center justify-center gap-2" data-upload-open><span class="iconify text-base" data-icon="solar:add-square-bold"></span> Upload Resource</button>
+            <div class="w-full sm:w-auto flex items-center justify-between gap-2 sm:justify-end">
+                <span class="minimal-badge bg-slate-100 text-slate-700 shrink-0">PDF</span>
+                <button type="button" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium inline-flex items-center justify-center gap-2 whitespace-nowrap" data-upload-open><span class="iconify text-base" data-icon="solar:add-square-bold"></span> Upload Resource</button>
             </div>
         </div>
 
-        <form method="get" class="mt-4">
-            <div class="flex flex-col md:flex-row md:items-center gap-3">
+        <form method="get" class="mt-4" id="librarySearchForm">
+            <div class="flex items-end gap-3">
                 <div class="flex-1">
-                    <label class="block text-xs font-medium text-slate-500 mb-1">Search</label>
-                    <input id="librarySearch" name="q" value="{{ filters.q if filters else '' }}" class="w-full minimal-input" placeholder="Search resources...">
-                    <p class="text-xs text-slate-400 mt-2">Showing <span id="librarySearchVisible">0</span> of <span id="librarySearchTotal">0</span></p>
+                    <label class="hidden md:block text-xs font-medium text-slate-500 mb-1">Search</label>
+                    <input id="librarySearch" name="q" value="{{ filters.q if filters else '' }}" class="w-full minimal-input h-[46px]" placeholder="Search resources...">
                 </div>
 
-                <details class="relative"{% if filters and (filters.tag or filters.uploader) %} open{% endif %}>
-                    <summary class="list-none cursor-pointer select-none px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center justify-center gap-2" aria-label="Advanced filters">
+                <div class="flex items-center gap-2 justify-end">
+                    <button id="libraryFiltersBtn" type="button" class="md:hidden px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center justify-center gap-2 h-[46px]" aria-label="Advanced filters">
+                        <span class="iconify text-lg text-slate-600" data-icon="solar:settings-outline"></span>
+                        <span class="hidden sm:inline">Filters</span>
+                    </button>
+
+                    <details id="libraryDesktopFilters" class="relative hidden md:block"{% if filters and (filters.tag or filters.uploader) %} open{% endif %}>
+                    <summary class="list-none cursor-pointer select-none px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center justify-center gap-2 h-[46px]" aria-label="Advanced filters">
                         <span class="iconify text-base text-slate-600" data-icon="solar:settings-outline"></span> Filters
                     </summary>
                     <div class="absolute right-0 top-full mt-2 w-[min(560px,92vw)] z-30">
@@ -56,8 +61,11 @@
                             </div>
                         </div>
                     </div>
-                </details>
+                    </details>
+                </div>
             </div>
+
+            <p class="text-xs text-slate-400 mt-2">Showing <span id="librarySearchVisible">0</span> of <span id="librarySearchTotal">0</span></p>
         </form>
 
         <div class="mt-4 space-y-3" id="libraryResourceList">
@@ -266,4 +274,48 @@
         })();
     </script>
 </section>
+
+<form method="get" class="md:hidden">
+    <input id="libraryFiltersQ" type="hidden" name="q" value="{{ filters.q if filters else '' }}">
+    <div id="libraryFiltersBottomSheet" class="fixed inset-0 z-[70] pointer-events-none opacity-0 transition-opacity duration-300">
+        <div class="absolute inset-0 bg-slate-900/70 backdrop-blur-[2px] pointer-events-none" id="libraryFiltersSheetBackdrop"></div>
+        <div id="libraryFiltersSheet" class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transform translate-y-full transition-transform duration-300 pointer-events-auto max-h-[85vh] overflow-hidden">
+            <div class="flex justify-center py-3" id="libraryFiltersSheetHandle">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+            </div>
+            <div class="px-6 pb-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-slate-900">Advanced Filters</h3>
+                    <button id="libraryFiltersSheetClose" type="button" class="p-2 rounded-xl hover:bg-slate-100 transition-colors">
+                        <span class="iconify text-xl text-slate-600" data-icon="solar:close-circle-bold"></span>
+                    </button>
+                </div>
+                <p class="text-sm text-slate-500 mt-1">Refine your search</p>
+            </div>
+            <div class="px-6 pb-6 overflow-y-auto" style="max-height: calc(85vh - 140px);">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Tag</label>
+                        <input name="tag" value="{{ filters.tag if filters else '' }}" class="w-full minimal-input" placeholder="e.g. DSA">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Uploader</label>
+                        <select name="uploader" class="w-full minimal-input">
+                            <option value="">All</option>
+                            {% for u in uploaders or [] %}
+                                <option value="{{ u }}"{% if filters and filters.uploader == u %} selected{% endif %}>{{ u }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <button type="submit" class="w-full px-4 py-3 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium inline-flex items-center justify-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> Apply</button>
+                        <a href="{{ url_for('library') }}" class="w-full px-4 py-3 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all text-center inline-flex items-center justify-center gap-2"><span class="iconify text-base text-amber-600" data-icon="solar:restart-outline"></span> Reset</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
 {% endblock %}
