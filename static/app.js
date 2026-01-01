@@ -62,6 +62,162 @@ function initPageProgress() {
     window.addEventListener('beforeunload', completeProgress);
 }
 
+function initNewsFiltersBottomSheet() {
+    const btn = document.getElementById('newsFiltersBtn');
+    const bottomSheet = document.getElementById('newsFiltersBottomSheet');
+    const backdrop = document.getElementById('newsFiltersSheetBackdrop');
+    const sheet = document.getElementById('newsFiltersSheet');
+    const closeBtn = document.getElementById('newsFiltersSheetClose');
+    const handle = document.getElementById('newsFiltersSheetHandle');
+    const qHidden = document.getElementById('newsFiltersQ');
+    const qInput = document.getElementById('newsSearch');
+
+    if (!bottomSheet || !backdrop || !sheet || !closeBtn || !handle) {
+        return;
+    }
+
+    const desktopDetails = document.getElementById('newsDesktopFilters');
+
+    function setDisabled(root, disabled) {
+        if (!root) return;
+        root.querySelectorAll('input, select, textarea, button').forEach((el) => {
+            if (!(el instanceof HTMLElement)) return;
+            if (el.id === 'newsFiltersBtn') return;
+            if (el.getAttribute('type') === 'submit') return;
+            el.toggleAttribute('disabled', !!disabled);
+        });
+    }
+
+    const mq = window.matchMedia('(min-width: 768px)');
+    function syncMode() {
+        const isDesktop = mq.matches;
+        setDisabled(desktopDetails, !isDesktop);
+        setDisabled(sheet, isDesktop);
+        if (btn) {
+            btn.classList.toggle('hidden', isDesktop);
+        }
+        if (isDesktop) {
+            closeSheet(false);
+        }
+    }
+
+    let scrollLockY = 0;
+    let isOpen = false;
+    function lockScroll() {
+        scrollLockY = window.scrollY || 0;
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollLockY}px`;
+        document.body.style.left = '0';
+        document.body.style.right = '0';
+        document.body.style.width = '100%';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function unlockScroll() {
+        document.body.style.position = '';
+        const top = document.body.style.top;
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        const y = top ? Math.abs(parseInt(top, 10)) : scrollLockY;
+        window.scrollTo(0, Number.isFinite(y) ? y : 0);
+    }
+
+    function openSheet() {
+        if (mq.matches) return;
+        if (qHidden && qInput) {
+            qHidden.value = qInput.value || '';
+        }
+        lockScroll();
+        isOpen = true;
+        bottomSheet.classList.remove('opacity-0', 'pointer-events-none');
+        bottomSheet.classList.add('opacity-100');
+        sheet.classList.remove('translate-y-full');
+        backdrop.classList.remove('pointer-events-none');
+        backdrop.classList.add('pointer-events-auto');
+    }
+
+    function closeSheet(unlock = true) {
+        bottomSheet.classList.add('opacity-0', 'pointer-events-none');
+        bottomSheet.classList.remove('opacity-100');
+        sheet.classList.add('translate-y-full');
+        backdrop.classList.add('pointer-events-none');
+        backdrop.classList.remove('pointer-events-auto');
+        if (unlock && isOpen) {
+            unlockScroll();
+        }
+        isOpen = false;
+    }
+
+    if (btn) {
+        btn.addEventListener('click', openSheet);
+    }
+    closeBtn.addEventListener('click', () => closeSheet(true));
+    backdrop.addEventListener('click', () => closeSheet(true));
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeSheet(true);
+        }
+    });
+
+    let startY = 0;
+    let isDragging = false;
+    let dragStartTime = 0;
+
+    function onStart(e) {
+        if (mq.matches) return;
+        const t = e.touches ? e.touches[0] : e;
+        startY = t.clientY;
+        isDragging = true;
+        dragStartTime = Date.now();
+        sheet.style.transition = 'none';
+    }
+
+    function onMove(e) {
+        if (!isDragging) return;
+        const t = e.touches ? e.touches[0] : e;
+        const dy = t.clientY - startY;
+        if (dy > 0) {
+            sheet.style.transform = `translateY(${dy}px)`;
+        }
+    }
+
+    function onEnd(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        sheet.style.transition = '';
+
+        const endY = (e.changedTouches ? e.changedTouches[0] : e).clientY;
+        const dy = endY - startY;
+        const dt = Date.now() - dragStartTime;
+
+        if (dy > 120 || (dy > 60 && dt < 250)) {
+            sheet.style.transform = '';
+            closeSheet(true);
+            return;
+        }
+
+        sheet.style.transform = '';
+    }
+
+    handle.addEventListener('touchstart', onStart, { passive: true });
+    handle.addEventListener('touchmove', onMove, { passive: true });
+    handle.addEventListener('touchend', onEnd, { passive: true });
+    handle.addEventListener('mousedown', onStart);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+
+    try {
+        mq.addEventListener('change', syncMode);
+    } catch {
+        mq.addListener(syncMode);
+    }
+    syncMode();
+}
+
 function initChangePasswordBottomSheet() {
     const actionBtn = document.getElementById('changePasswordBtn');
     const bottomSheet = document.getElementById('changePasswordBottomSheet');
@@ -1372,6 +1528,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initChangePasswordBottomSheet();
     initAdminChangePasswordBottomSheet();
     initLibraryFiltersBottomSheet();
+    initNewsFiltersBottomSheet();
 
     const subtitle = document.getElementById('headerSubtitle');
     if (subtitle && subtitle.dataset.autodate === 'true') {

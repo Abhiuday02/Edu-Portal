@@ -14,9 +14,13 @@
         <div class="flex flex-col md:flex-row md:items-center gap-3">
             <form method="get" class="flex-1">
                 <div class="relative">
-                    <input name="q" value="{{ filters.q }}" class="w-full minimal-input pr-12" placeholder="Search news...">
+                    <input id="newsSearch" name="q" value="{{ filters.q }}" class="w-full minimal-input pr-12" placeholder="Search news...">
 
-                    <details class="absolute inset-y-0 right-0 flex items-center pr-2"{% if filters_active and (filters.priority or filters.news_type or filters.sender or filters.tag or filters.from_dt or filters.to_dt) %} open{% endif %}>
+                    <button id="newsFiltersBtn" type="button" class="md:hidden absolute inset-y-0 right-0 flex items-center pr-2" aria-label="Advanced filters">
+                        <span class="p-2 rounded-xl hover:bg-slate-100 text-slate-600"><span class="iconify text-lg" data-icon="solar:settings-outline"></span></span>
+                    </button>
+
+                    <details id="newsDesktopFilters" class="hidden md:flex absolute inset-y-0 right-0 items-center pr-2"{% if filters_active and (filters.priority or filters.news_type or filters.sender or filters.tag or filters.from_dt or filters.to_dt) %} open{% endif %}>
                         <summary class="list-none cursor-pointer select-none p-2 rounded-xl hover:bg-slate-100 text-slate-600" aria-label="Advanced filters"><span class="iconify text-lg" data-icon="solar:settings-outline"></span></summary>
                         <div class="absolute right-0 top-full mt-2 w-[min(520px,90vw)] z-20">
                             <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-lg">
@@ -159,5 +163,79 @@
             {% endif %}
         </div>
     </div>
-</section>
+ </section>
+
+ <form method="get" class="md:hidden">
+     <input id="newsFiltersQ" type="hidden" name="q" value="{{ filters.q }}">
+     <div id="newsFiltersBottomSheet" class="fixed inset-0 z-[70] pointer-events-none opacity-0 transition-opacity duration-300">
+         <div class="absolute inset-0 bg-slate-900/70 backdrop-blur-[2px] pointer-events-none" id="newsFiltersSheetBackdrop"></div>
+         <div id="newsFiltersSheet" class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transform translate-y-full transition-transform duration-300 pointer-events-auto max-h-[85vh] overflow-hidden">
+             <div class="flex justify-center py-3" id="newsFiltersSheetHandle">
+                 <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+             </div>
+             <div class="px-6 pb-4">
+                 <div class="flex items-center justify-between">
+                     <h3 class="text-lg font-semibold text-slate-900">Advanced Filters</h3>
+                     <button id="newsFiltersSheetClose" type="button" class="p-2 rounded-xl hover:bg-slate-100 transition-colors">
+                         <span class="iconify text-xl text-slate-600" data-icon="solar:close-circle-bold"></span>
+                     </button>
+                 </div>
+                 <p class="text-sm text-slate-500 mt-1">Refine your search</p>
+             </div>
+             <div class="px-6 pb-6 overflow-y-auto" style="max-height: calc(85vh - 140px);">
+                 <div class="space-y-4">
+                     <div>
+                         <label class="block text-sm font-medium text-slate-700 mb-2">Priority</label>
+                         <select name="priority" class="w-full minimal-input">
+                             <option value="">All</option>
+                             {% for p in priorities %}
+                                 <option value="{{ p }}"{% if filters.priority == p %} selected{% endif %}>{{ p }}</option>
+                             {% endfor %}
+                         </select>
+                     </div>
+
+                     <div>
+                         <label class="block text-sm font-medium text-slate-700 mb-2">Type</label>
+                         <select name="news_type" class="w-full minimal-input">
+                             <option value="">All</option>
+                             {% for t in news_types %}
+                                 <option value="{{ t }}"{% if filters.news_type == t %} selected{% endif %}>{{ t }}</option>
+                             {% endfor %}
+                         </select>
+                     </div>
+
+                     <div>
+                         <label class="block text-sm font-medium text-slate-700 mb-2">Sender</label>
+                         <select name="sender" class="w-full minimal-input">
+                             <option value="">All</option>
+                             {% for s in senders %}
+                                 <option value="{{ s }}"{% if filters.sender == s %} selected{% endif %}>{{ s }}</option>
+                             {% endfor %}
+                         </select>
+                     </div>
+
+                     <div>
+                         <label class="block text-sm font-medium text-slate-700 mb-2">Tag</label>
+                         <input name="tag" value="{{ filters.tag }}" class="w-full minimal-input" placeholder="e.g. Campus">
+                     </div>
+
+                     <div>
+                         <label class="block text-sm font-medium text-slate-700 mb-2">From</label>
+                         <input type="datetime-local" name="from" value="{{ filters.from_dt }}" class="w-full minimal-input">
+                     </div>
+
+                     <div>
+                         <label class="block text-sm font-medium text-slate-700 mb-2">To</label>
+                         <input type="datetime-local" name="to" value="{{ filters.to_dt }}" class="w-full minimal-input">
+                     </div>
+
+                     <div class="flex flex-col gap-2">
+                         <button type="submit" class="w-full px-4 py-3 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium inline-flex items-center justify-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> Apply</button>
+                         <a href="{{ url_for('news') }}" class="w-full px-4 py-3 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all text-center inline-flex items-center justify-center gap-2"><span class="iconify text-base text-amber-600" data-icon="solar:restart-outline"></span> Reset</a>
+                     </div>
+                 </div>
+             </div>
+         </div>
+     </div>
+ </form>
 {% endblock %}
