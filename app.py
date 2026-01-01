@@ -1794,14 +1794,11 @@ def admin_schedules():
         SELECT wt.*, sg.name AS schedule_group_name
         FROM weekly_timetable wt
         LEFT JOIN schedule_groups sg ON sg.id = wt.schedule_id
-        ORDER BY wt.schedule_id ASC, wt.day_of_week ASC, time(wt.start_time) ASC
-        """
+        WHERE wt.schedule_id = ?
+        ORDER BY wt.day_of_week ASC, time(wt.start_time) ASC
+        """,
+        (int(selected_id),),
     ).fetchall()
-
-    timetable_by_group = {}
-    for r in timetable_rows:
-        sid = int(r["schedule_id"]) if r["schedule_id"] is not None else 0
-        timetable_by_group.setdefault(sid, []).append(r)
 
     return render_template(
         "admin_schedules.html",
@@ -1810,7 +1807,6 @@ def admin_schedules():
         active_page="admin_schedules",
         calendar_items=calendar_items,
         timetable_rows=timetable_rows,
-        timetable_by_group=timetable_by_group,
         schedule_groups=groups,
         selected_schedule_id=int(selected_id),
         error=None,
@@ -1889,6 +1885,25 @@ def admin_schedule_group_create():
     db.commit()
     new_id = int(db.execute("SELECT last_insert_rowid()").fetchone()[0])
     return redirect(url_for("admin_schedules", schedule_id=new_id))
+
+
+@app.post("/admin/schedules/groups/<int:group_id>/update")
+@admin_login_required
+def admin_schedule_group_update(group_id: int):
+    name = (request.form.get("name") or "").strip()
+    schedule_id_raw = (request.form.get("schedule_id") or request.args.get("schedule_id") or "").strip()
+    try:
+        schedule_id = int(schedule_id_raw)
+    except Exception:
+        schedule_id = int(group_id)
+
+    if not name:
+        return redirect(url_for("admin_schedules", schedule_id=int(schedule_id)))
+
+    db = get_db()
+    db.execute("UPDATE schedule_groups SET name = ? WHERE id = ?", (name, int(group_id)))
+    db.commit()
+    return redirect(url_for("admin_schedules", schedule_id=int(schedule_id)))
 
 
 @app.post("/admin/schedules/events/new")
