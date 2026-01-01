@@ -1,10 +1,202 @@
 {% extends "admin_base.html" %}
 
 {% block content %}
-<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-    <div class="flex-1">
-        <input id="adminStudentsSearch" type="text" class="admin-input w-full" placeholder="Search students by name, roll no, email, phone, program, department...">
-        <p class="text-xs text-slate-500 mt-2">Showing <span id="adminStudentsVisibleCount">0</span> of <span id="adminStudentsTotalCount">0</span></p>
+<div class="flex flex-col gap-3 mb-4">
+    <form method="get" class="flex flex-col md:flex-row md:items-end gap-3">
+        <div class="flex-1">
+            <label class="hidden md:block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">Search</label>
+            <div class="flex items-end gap-2">
+                <input id="adminStudentsSearch" name="q" type="text" value="{{ (filters.q if filters else '') }}" class="admin-input w-full h-[46px]" placeholder="Search students by name, roll no, email, phone, program, department...">
+
+                <button id="adminStudentsFiltersBtn" type="button" class="md:hidden admin-btn admin-btn-soft h-[46px] px-3" aria-label="Advanced filters">
+                    <span class="iconify text-lg" data-icon="solar:settings-outline"></span>
+                </button>
+
+                <details id="adminStudentsDesktopFilters" class="relative hidden md:block">
+                    <summary class="admin-btn admin-btn-soft h-[46px] px-4 inline-flex items-center justify-center gap-2 cursor-pointer select-none" aria-label="Advanced filters">
+                        <span class="iconify text-lg" data-icon="solar:settings-outline"></span>
+                        Filters
+                    </summary>
+                    <div class="absolute right-0 top-full mt-2 w-[min(720px,92vw)] z-30">
+                        <div class="admin-card border border-slate-200 bg-white rounded-2xl p-4">
+                            <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+                                <div class="md:col-span-4">
+                                    <label class="block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">Program</label>
+                                    <input name="program" value="{{ (filters.program if filters else '') }}" type="text" class="admin-input w-full" placeholder="e.g. B.Tech">
+                                </div>
+                                <div class="md:col-span-4">
+                                    <label class="block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">Department</label>
+                                    <input name="department" value="{{ (filters.department if filters else '') }}" type="text" class="admin-input w-full" placeholder="e.g. CSE">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">Year</label>
+                                    <input name="year" value="{{ (filters.year if filters else '') }}" type="number" class="admin-input w-full" placeholder="e.g. 2">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">Sem</label>
+                                    <input name="sem" value="{{ (filters.sem if filters else '') }}" type="number" class="admin-input w-full" placeholder="e.g. 3">
+                                </div>
+                                <div class="md:col-span-4">
+                                    <label class="block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">Schedule Group</label>
+                                    <select name="schedule_id" class="admin-input w-full">
+                                        <option value="">Any</option>
+                                        {% for g in schedule_groups %}
+                                            <option value="{{ g.id }}"{% if filters and filters.schedule_id == (g.id|string) %} selected{% endif %}>#{{ g.id }} - {{ g.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">Status</label>
+                                    <input name="status" value="{{ (filters.status if filters else '') }}" type="text" class="admin-input w-full" placeholder="Active">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">Section</label>
+                                    <input name="section" value="{{ (filters.section if filters else '') }}" type="text" class="admin-input w-full" placeholder="A">
+                                </div>
+                                <div class="md:col-span-12 flex items-center justify-end gap-2 pt-1">
+                                    <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> Apply</button>
+                                    <a href="{{ url_for('admin_students') }}" class="admin-btn admin-btn-soft inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:restart-outline"></span> Reset</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+            </div>
+
+            <p class="text-xs text-slate-500 mt-2">Showing <span id="adminStudentsVisibleCount">0</span> of <span id="adminStudentsTotalCount">0</span></p>
+        </div>
+    </form>
+
+    <div id="adminStudentsBulkBar" class="hidden admin-card border border-slate-200 bg-white rounded-2xl p-4">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <p class="text-sm text-slate-700">Selected <span id="adminStudentsSelectedCount" class="font-semibold">0</span> students</p>
+            <div class="flex items-center gap-2 justify-end">
+                <button type="button" id="adminStudentsBulkEditOpen" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:pen-2-bold"></span> Bulk Edit</button>
+                <button type="button" id="adminStudentsBulkClear" class="admin-btn admin-btn-soft">Clear</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="adminStudentsFiltersBottomSheet" class="fixed inset-0 z-[70] pointer-events-none opacity-0 transition-opacity duration-300 md:hidden">
+    <div class="absolute inset-0 bg-slate-900/60 pointer-events-none" id="adminStudentsFiltersSheetBackdrop"></div>
+    <div id="adminStudentsFiltersSheet" class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transform translate-y-full transition-transform duration-300 pointer-events-auto max-h-[85vh] overflow-hidden">
+        <div class="flex justify-center py-3" id="adminStudentsFiltersSheetHandle">
+            <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+        </div>
+        <div class="px-6 pb-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-slate-900">Advanced Filters</h3>
+                <button id="adminStudentsFiltersSheetClose" type="button" class="p-2 rounded-xl hover:bg-slate-100 transition-colors">
+                    <span class="iconify text-xl text-slate-600" data-icon="solar:close-circle-bold"></span>
+                </button>
+            </div>
+            <p class="text-sm text-slate-500 mt-1">Refine students list</p>
+        </div>
+        <div class="px-6 pb-6 overflow-y-auto" style="max-height: calc(85vh - 140px);">
+            <form method="get" class="space-y-4">
+                <input id="adminStudentsFiltersQ" type="hidden" name="q" value="{{ (filters.q if filters else '') }}">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Program</label>
+                    <input name="program" value="{{ (filters.program if filters else '') }}" type="text" class="admin-input w-full" placeholder="e.g. B.Tech">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Department</label>
+                    <input name="department" value="{{ (filters.department if filters else '') }}" type="text" class="admin-input w-full" placeholder="e.g. CSE">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Year</label>
+                        <input name="year" value="{{ (filters.year if filters else '') }}" type="number" class="admin-input w-full" placeholder="e.g. 2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Sem</label>
+                        <input name="sem" value="{{ (filters.sem if filters else '') }}" type="number" class="admin-input w-full" placeholder="e.g. 3">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Schedule Group</label>
+                    <select name="schedule_id" class="admin-input w-full">
+                        <option value="">Any</option>
+                        {% for g in schedule_groups %}
+                            <option value="{{ g.id }}"{% if filters and filters.schedule_id == (g.id|string) %} selected{% endif %}>#{{ g.id }} - {{ g.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Status</label>
+                        <input name="status" value="{{ (filters.status if filters else '') }}" type="text" class="admin-input w-full" placeholder="Active">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Section</label>
+                        <input name="section" value="{{ (filters.section if filters else '') }}" type="text" class="admin-input w-full" placeholder="A">
+                    </div>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <button type="submit" class="admin-btn admin-btn-primary w-full inline-flex items-center justify-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> Apply</button>
+                    <a href="{{ url_for('admin_students') }}" class="admin-btn admin-btn-soft w-full inline-flex items-center justify-center gap-2"><span class="iconify text-base" data-icon="solar:restart-outline"></span> Reset</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div data-admin-students-bulk-backdrop class="fixed inset-0 bg-slate-900/40 opacity-0 pointer-events-none transition-opacity z-40"></div>
+<div data-admin-students-bulk-sheet class="fixed inset-x-0 bottom-0 translate-y-full opacity-0 pointer-events-none transition-all duration-200 ease-out z-50">
+    <div class="mx-auto max-w-2xl">
+        <div class="admin-card border border-slate-200 bg-white rounded-t-3xl">
+            <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-slate-500">Update</p>
+                    <p class="text-lg font-semibold text-slate-900">Bulk Edit Students</p>
+                </div>
+                <button type="button" class="admin-btn admin-btn-soft" data-admin-students-bulk-close>Close</button>
+            </div>
+            <div class="px-5 pt-3">
+                <div class="mx-auto h-1.5 w-12 rounded-full bg-slate-200" data-admin-students-bulk-handle></div>
+            </div>
+            <div class="p-5 max-h-[70vh] overflow-y-auto">
+                <form method="post" action="{{ url_for('admin_students_bulk_update') }}" class="space-y-4" id="adminStudentsBulkForm">
+                    <div class="admin-card p-4 bg-slate-50 border border-slate-200">
+                        <p class="text-sm font-semibold text-slate-900">Fields to update</p>
+                        <p class="text-xs text-slate-500 mt-1">Leave a field blank to keep current value unchanged.</p>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">Year</label>
+                            <input name="year" type="number" class="admin-input w-full" placeholder="e.g. 2">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">Sem</label>
+                            <input name="sem" type="number" class="admin-input w-full" placeholder="e.g. 3">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">Weekly Schedule Group</label>
+                        <select name="schedule_id" class="admin-input w-full">
+                            <option value="">No change</option>
+                            {% for g in schedule_groups %}
+                                <option value="{{ g.id }}">#{{ g.id }} - {{ g.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">Status</label>
+                            <input name="status" type="text" class="admin-input w-full" placeholder="Active">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">Section</label>
+                            <input name="section" type="text" class="admin-input w-full" placeholder="A">
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-end gap-2">
+                        <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:check-circle-bold"></span> Apply Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -176,6 +368,9 @@
                 <div class="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-4">
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
+                            <label class="inline-flex items-center gap-2">
+                                <input type="checkbox" class="admin-student-select" value="{{ s.id }}" aria-label="Select student">
+                            </label>
                             <span class="admin-pill bg-slate-100 text-slate-700">#{{ s.id }}</span>
                             <span class="admin-pill bg-indigo-50 text-indigo-700">SEM {{ s.sem }}</span>
                             <span class="text-xs text-slate-600">{{ s.roll_no }}</span>
@@ -238,9 +433,9 @@
                                     data-emergency_contact_relation="{{ (p.emergency_contact_relation if p else '')|e }}"
                                     data-emergency_contact_phone="{{ (p.emergency_contact_phone if p else '')|e }}"
                                     data-pending_amount="{{ (du.pending_amount if du else 0) }}"
-                                >Edit</button>
+                                ><span class="inline-flex items-center justify-center gap-2"><span class="iconify text-base" data-icon="solar:pen-2-bold"></span> Edit</span></button>
                                 <form method="post" action="{{ url_for('admin_student_delete', student_id=s.id) }}" onsubmit="return confirm('Delete this student record? This will delete related data (vault files, attendance, results, submissions).');">
-                                    <button type="submit" class="admin-btn admin-btn-danger w-full">Delete</button>
+                                    <button type="submit" class="admin-btn admin-btn-danger w-full inline-flex items-center justify-center gap-2"><span class="iconify text-base" data-icon="solar:trash-bin-trash-bold"></span> Delete</button>
                                 </form>
                             </div>
                         </div>
@@ -284,6 +479,279 @@
 
         input.addEventListener('input', apply);
         apply();
+    })();
+
+    (function () {
+        const btn = document.getElementById('adminStudentsFiltersBtn');
+        const bottomSheet = document.getElementById('adminStudentsFiltersBottomSheet');
+        const backdrop = document.getElementById('adminStudentsFiltersSheetBackdrop');
+        const sheet = document.getElementById('adminStudentsFiltersSheet');
+        const closeBtn = document.getElementById('adminStudentsFiltersSheetClose');
+        const handle = document.getElementById('adminStudentsFiltersSheetHandle');
+        const qHidden = document.getElementById('adminStudentsFiltersQ');
+        const qInput = document.getElementById('adminStudentsSearch');
+
+        if (!btn || !bottomSheet || !backdrop || !sheet || !closeBtn || !handle) {
+            return;
+        }
+
+        let scrollLockY = 0;
+        let isOpen = false;
+        function lockScroll() {
+            scrollLockY = window.scrollY || 0;
+            document.body.style.position = 'fixed';
+            document.body.style.top = `-${scrollLockY}px`;
+            document.body.style.left = '0';
+            document.body.style.right = '0';
+            document.body.style.width = '100%';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function unlockScroll() {
+            document.body.style.position = '';
+            const top = document.body.style.top;
+            document.body.style.top = '';
+            document.body.style.left = '';
+            document.body.style.right = '';
+            document.body.style.width = '';
+            document.body.style.overflow = '';
+            const y = top ? Math.abs(parseInt(top, 10)) : scrollLockY;
+            window.scrollTo(0, Number.isFinite(y) ? y : 0);
+        }
+
+        function open() {
+            if (qHidden && qInput) {
+                qHidden.value = qInput.value || '';
+            }
+            lockScroll();
+            isOpen = true;
+            bottomSheet.classList.remove('opacity-0', 'pointer-events-none');
+            bottomSheet.classList.add('opacity-100');
+            sheet.classList.remove('translate-y-full');
+            backdrop.classList.remove('pointer-events-none');
+            backdrop.classList.add('pointer-events-auto');
+        }
+
+        function close() {
+            bottomSheet.classList.add('opacity-0', 'pointer-events-none');
+            bottomSheet.classList.remove('opacity-100');
+            sheet.classList.add('translate-y-full');
+            backdrop.classList.add('pointer-events-none');
+            backdrop.classList.remove('pointer-events-auto');
+            if (isOpen) {
+                unlockScroll();
+            }
+            isOpen = false;
+        }
+
+        btn.addEventListener('click', open);
+        closeBtn.addEventListener('click', close);
+        backdrop.addEventListener('click', close);
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                close();
+            }
+        });
+
+        let startY = 0;
+        let isDragging = false;
+        let dragStartTime = 0;
+
+        function onStart(e) {
+            const t = e.touches ? e.touches[0] : e;
+            startY = t.clientY;
+            isDragging = true;
+            dragStartTime = Date.now();
+            sheet.style.transition = 'none';
+        }
+
+        function onMove(e) {
+            if (!isDragging) return;
+            const t = e.touches ? e.touches[0] : e;
+            const dy = t.clientY - startY;
+            if (dy > 0) {
+                sheet.style.transform = `translateY(${dy}px)`;
+            }
+        }
+
+        function onEnd(e) {
+            if (!isDragging) return;
+            isDragging = false;
+            sheet.style.transition = '';
+
+            const endY = (e.changedTouches ? e.changedTouches[0] : e).clientY;
+            const dy = endY - startY;
+            const dt = Date.now() - dragStartTime;
+
+            if (dy > 120 || (dy > 60 && dt < 250)) {
+                sheet.style.transform = '';
+                close();
+                return;
+            }
+            sheet.style.transform = '';
+        }
+
+        handle.addEventListener('touchstart', onStart, { passive: true });
+        handle.addEventListener('touchmove', onMove, { passive: true });
+        handle.addEventListener('touchend', onEnd, { passive: true });
+        handle.addEventListener('mousedown', onStart);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onEnd);
+    })();
+
+    (function () {
+        const list = document.getElementById('adminStudentsList');
+        const bulkBar = document.getElementById('adminStudentsBulkBar');
+        const countEl = document.getElementById('adminStudentsSelectedCount');
+        const openBtn = document.getElementById('adminStudentsBulkEditOpen');
+        const clearBtn = document.getElementById('adminStudentsBulkClear');
+        const bulkForm = document.getElementById('adminStudentsBulkForm');
+        const backdrop = document.querySelector('[data-admin-students-bulk-backdrop]');
+        const sheet = document.querySelector('[data-admin-students-bulk-sheet]');
+        const closeBtn = document.querySelector('[data-admin-students-bulk-close]');
+        const handleEl = document.querySelector('[data-admin-students-bulk-handle]');
+
+        if (!list || !bulkBar || !countEl || !openBtn || !clearBtn || !bulkForm || !backdrop || !sheet || !closeBtn) {
+            return;
+        }
+
+        function checkboxes() {
+            return Array.from(list.querySelectorAll('.admin-student-select'));
+        }
+
+        function selectedIds() {
+            return checkboxes().filter((c) => c.checked).map((c) => c.value);
+        }
+
+        function syncBar() {
+            const ids = selectedIds();
+            countEl.textContent = String(ids.length);
+            bulkBar.classList.toggle('hidden', ids.length === 0);
+        }
+
+        list.addEventListener('change', (e) => {
+            const t = e.target;
+            if (t && t.classList && t.classList.contains('admin-student-select')) {
+                syncBar();
+            }
+        });
+
+        function clearSelection() {
+            checkboxes().forEach((c) => { c.checked = false; });
+            syncBar();
+        }
+
+        let scrollLockY = 0;
+        function lockScroll() {
+            scrollLockY = window.scrollY || 0;
+            document.body.style.position = 'fixed';
+            document.body.style.top = `-${scrollLockY}px`;
+            document.body.style.left = '0';
+            document.body.style.right = '0';
+            document.body.style.width = '100%';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function unlockScroll() {
+            document.body.style.position = '';
+            const top = document.body.style.top;
+            document.body.style.top = '';
+            document.body.style.left = '';
+            document.body.style.right = '';
+            document.body.style.width = '';
+            document.body.style.overflow = '';
+            const y = top ? Math.abs(parseInt(top, 10)) : scrollLockY;
+            window.scrollTo(0, Number.isFinite(y) ? y : 0);
+        }
+
+        function openSheet() {
+            const ids = selectedIds();
+            if (!ids.length) {
+                return;
+            }
+            bulkForm.querySelectorAll('input[name="student_ids"]').forEach((el) => el.remove());
+            ids.forEach((id) => {
+                const el = document.createElement('input');
+                el.type = 'hidden';
+                el.name = 'student_ids';
+                el.value = id;
+                bulkForm.appendChild(el);
+            });
+
+            lockScroll();
+            backdrop.classList.remove('opacity-0', 'pointer-events-none');
+            backdrop.classList.add('opacity-100');
+            sheet.classList.remove('translate-y-full', 'opacity-0', 'pointer-events-none');
+            sheet.classList.add('opacity-100');
+        }
+
+        function closeSheet() {
+            backdrop.classList.add('opacity-0', 'pointer-events-none');
+            backdrop.classList.remove('opacity-100');
+            sheet.classList.add('translate-y-full', 'opacity-0', 'pointer-events-none');
+            sheet.classList.remove('opacity-100');
+            sheet.style.transform = '';
+            unlockScroll();
+        }
+
+        openBtn.addEventListener('click', openSheet);
+        clearBtn.addEventListener('click', clearSelection);
+        closeBtn.addEventListener('click', closeSheet);
+        backdrop.addEventListener('click', closeSheet);
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeSheet();
+            }
+        });
+
+        if (handleEl) {
+            let startY = 0;
+            let isDragging = false;
+            let dragStartTime = 0;
+
+            function onStart(e) {
+                const t = e.touches ? e.touches[0] : e;
+                startY = t.clientY;
+                isDragging = true;
+                dragStartTime = Date.now();
+                sheet.style.transition = 'none';
+            }
+
+            function onMove(e) {
+                if (!isDragging) return;
+                const t = e.touches ? e.touches[0] : e;
+                const dy = t.clientY - startY;
+                if (dy > 0) {
+                    sheet.style.transform = `translateY(${dy}px)`;
+                }
+            }
+
+            function onEnd(e) {
+                if (!isDragging) return;
+                isDragging = false;
+                sheet.style.transition = '';
+
+                const endY = (e.changedTouches ? e.changedTouches[0] : e).clientY;
+                const dy = endY - startY;
+                const dt = Date.now() - dragStartTime;
+
+                if (dy > 120 || (dy > 60 && dt < 250)) {
+                    sheet.style.transform = '';
+                    closeSheet();
+                    return;
+                }
+                sheet.style.transform = '';
+            }
+
+            handleEl.addEventListener('touchstart', onStart, { passive: true });
+            handleEl.addEventListener('touchmove', onMove, { passive: true });
+            handleEl.addEventListener('touchend', onEnd, { passive: true });
+            handleEl.addEventListener('mousedown', onStart);
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onEnd);
+        }
+
+        syncBar();
     })();
 
     (function () {

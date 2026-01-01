@@ -2032,6 +2032,17 @@ def admin_teachers():
 def admin_students():
     db = get_db()
 
+    filters = {
+        "q": (request.args.get("q") or "").strip(),
+        "program": (request.args.get("program") or "").strip(),
+        "department": (request.args.get("department") or "").strip(),
+        "year": (request.args.get("year") or "").strip(),
+        "sem": (request.args.get("sem") or "").strip(),
+        "schedule_id": (request.args.get("schedule_id") or "").strip(),
+        "status": (request.args.get("status") or "").strip(),
+        "section": (request.args.get("section") or "").strip(),
+    }
+
     students = db.execute("SELECT * FROM students ORDER BY id DESC").fetchall()
     details = {
         int(r["student_id"]): r
@@ -2047,16 +2058,72 @@ def admin_students():
     }
     groups = db.execute("SELECT * FROM schedule_groups ORDER BY id ASC").fetchall()
 
+    def to_int(val: str) -> int | None:
+        try:
+            return int(val)
+        except Exception:
+            return None
+
+    q = filters["q"].lower()
+    f_program = filters["program"].lower()
+    f_department = filters["department"].lower()
+    f_year = to_int(filters["year"])
+    f_sem = to_int(filters["sem"])
+    f_schedule_id = to_int(filters["schedule_id"])
+    f_status = filters["status"].lower()
+    f_section = filters["section"].lower()
+
+    filtered_students = []
+    for s in students:
+        s_dict = dict(s)
+        sid = int(s_dict.get("id") or 0)
+        p = profiles.get(sid)
+        p_dict = dict(p) if p else {}
+        hay = " ".join(
+            [
+                str(s_dict.get("name") or ""),
+                str(s_dict.get("roll_no") or ""),
+                str(s_dict.get("email") or ""),
+                str(s_dict.get("phone") or ""),
+                str(s_dict.get("program") or ""),
+                str(p_dict.get("department") or ""),
+                str(p_dict.get("section") or ""),
+                str(p_dict.get("status") or ""),
+            ]
+        ).lower()
+
+        if q and q not in hay:
+            continue
+        if f_program and (str(s_dict.get("program") or "").lower() != f_program):
+            continue
+        if f_department and (str(p_dict.get("department") or "").lower() != f_department):
+            continue
+        if f_year is not None and int(s_dict.get("year") or 0) != f_year:
+            continue
+        if f_sem is not None and int(s_dict.get("sem") or 0) != f_sem:
+            continue
+        if f_schedule_id is not None:
+            current_schedule = s_dict.get("schedule_id") if ("schedule_id" in s.keys()) else None
+            if int(current_schedule or 0) != f_schedule_id:
+                continue
+        if f_status and (str(p_dict.get("status") or "").lower() != f_status):
+            continue
+        if f_section and (str(p_dict.get("section") or "").lower() != f_section):
+            continue
+
+        filtered_students.append(s)
+
     return render_template(
         "admin_students.html",
         page_title="Students",
         page_subtitle="View and update registered students",
         active_page="admin_students",
-        students=students,
+        students=filtered_students,
         details_by_student_id=details,
         profile_by_student_id=profiles,
         dues_by_student_id=dues,
         schedule_groups=groups,
+        filters=filters,
         error=None,
     )
 
@@ -2231,6 +2298,73 @@ def admin_student_update(student_id: int):
                 "UPDATE student_dues SET pending_amount = ? WHERE student_id = ?",
                 (int(pending_amount), int(student_id)),
             )
+
+    db.commit()
+    return redirect(url_for("admin_students"))
+
+
+@app.post("/admin/students/bulk-update")
+@admin_login_required
+def admin_students_bulk_update():
+    raw_ids = request.form.getlist("student_ids")
+
+    student_ids: list[int] = []
+    for x in raw_ids:
+        try:
+            student_ids.append(int(x))
+        except Exception:
+            continue
+    if not student_ids:
+        return redirect(url_for("admin_students"))
+
+    def to_int(val: str) -> int | None:
+        try:
+            return int(val)
+        except Exception:
+            return None
+
+    year = (request.form.get("year") or "").strip()
+    sem = (request.form.get("sem") or "").strip()
+    schedule_id = (request.form.get("schedule_id") or "").strip()
+    status = (request.form.get("status") or "").strip()
+    section = (request.form.get("section") or "").strip()
+
+    year_i = to_int(year)
+    sem_i = to_int(sem)
+    schedule_i = to_int(schedule_id)
+
+    db = get_db()
+    cols = {row[1] for row in db.execute("PRAGMA table_info(students)").fetchall()}
+
+    q_marks = ",".join(["?"] * len(student_ids))
+
+    student_updates: list[tuple[str, int | None]] = []
+    if year_i is not None:
+        student_updates.append(("year", year_i))
+    if sem_i is not None:
+        student_updates.append(("sem", sem_i))
+    if "schedule_id" in cols and schedule_i is not None:
+        student_updates.append(("schedule_id", schedule_i or None))
+
+    if student_updates:
+        set_sql = ", ".join([f"{k} = ?" for k, _ in student_updates])
+        db.execute(
+            f"UPDATE students SET {set_sql} WHERE id IN ({q_marks})",
+            [v for _, v in student_updates] + student_ids,
+        )
+
+    prof_cols = {row[1] for row in db.execute("PRAGMA table_info(student_profile)").fetchall()}
+    prof_updates: list[tuple[str, str]] = []
+    if "status" in prof_cols and status:
+        prof_updates.append(("status", status))
+    if "section" in prof_cols and section:
+        prof_updates.append(("section", section))
+    if prof_updates:
+        set_sql = ", ".join([f"{k} = ?" for k, _ in prof_updates])
+        db.execute(
+            f"UPDATE student_profile SET {set_sql} WHERE student_id IN ({q_marks})",
+            [v for _, v in prof_updates] + student_ids,
+        )
 
     db.commit()
     return redirect(url_for("admin_students"))
