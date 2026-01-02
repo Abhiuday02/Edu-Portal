@@ -237,6 +237,12 @@ def ensure_students_password_column(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE students ADD COLUMN password_hash TEXT")
 
 
+def ensure_students_schedule_id_column(db: sqlite3.Connection) -> None:
+    cols = {row[1] for row in db.execute("PRAGMA table_info(students)").fetchall()}
+    if "schedule_id" not in cols:
+        db.execute("ALTER TABLE students ADD COLUMN schedule_id INTEGER")
+
+
 def ensure_schedule_schema(db: sqlite3.Connection) -> None:
     db.execute(
         """
@@ -442,7 +448,9 @@ def init_db() -> None:
                 year INTEGER NOT NULL,
                 sem INTEGER NOT NULL,
                 attendance_percent INTEGER NOT NULL,
-                next_class TEXT NOT NULL
+                next_class TEXT NOT NULL,
+                password_hash TEXT,
+                schedule_id INTEGER
             );
 
             CREATE TABLE IF NOT EXISTS announcements (
@@ -3236,10 +3244,10 @@ def register_post():
             "register.html",
             error="Please enter a valid 10-digit mobile number (starting with 6-9).",
         )
-    if not re.fullmatch(r"[6-9]\d{9}", emergency_digits):
+    if not re.fullmatch(r"\d{10}", emergency_digits):
         return render_template(
             "register.html",
-            error="Please enter a valid 10-digit emergency mobile number (starting with 6-9).",
+            error="Please enter a valid 10-digit emergency contact number.",
         )
 
     form["phone"] = phone_digits
@@ -3267,6 +3275,7 @@ def register_post():
 
     db = get_db()
     ensure_students_password_column(db)
+    ensure_students_schedule_id_column(db)
 
     exists = db.execute(
         "SELECT id FROM students WHERE roll_no = ?",
