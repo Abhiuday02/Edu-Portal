@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduPortal - Faculty News</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.15/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+
+<body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 text-slate-800 p-6">
+    <div class="max-w-3xl mx-auto">
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-[0_30px_80px_rgba(15,23,42,0.12),0_2px_10px_rgba(15,23,42,0.06)] p-6 md:p-8">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden">
+                        <img src="{{ url_for('static', filename='app_icon/logo.png') }}" alt="EduPortal" class="w-10 h-10 object-contain" />
+                    </div>
+                    <div>
+                        <div class="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">EduPortal</div>
+                        <div class="text-lg font-semibold text-slate-900">{% if post %}Edit Post{% else %}Create Post{% endif %}</div>
+                        <div class="text-xs text-slate-500 mt-1">Sender: <span class="font-semibold text-slate-900">{{ faculty_user.full_name }}</span></div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="{{ url_for('faculty_news_list') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all">Back</a>
+                    <a href="{{ url_for('faculty_logout') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all">Logout</a>
+                </div>
+            </div>
+
+            {% if error %}
+            <div class="mt-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <form method="post" action="{% if post %}{{ url_for('faculty_news_update', post_id=post.id) }}{% else %}{{ url_for('faculty_news_create') }}{% endif %}" enctype="multipart/form-data" class="mt-6 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600">Priority</label>
+                        <select name="priority" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+                            {% set pv = (post.priority if post else 'NORMAL') %}
+                            <option value="NORMAL" {% if pv == 'NORMAL' %}selected{% endif %}>NORMAL</option>
+                            <option value="HIGH" {% if pv == 'HIGH' %}selected{% endif %}>HIGH</option>
+                            <option value="LOW" {% if pv == 'LOW' %}selected{% endif %}>LOW</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600">Type</label>
+                        <input name="news_type" type="text" value="{{ post.news_type if post else 'Update' }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600">Heading</label>
+                    <input name="heading" type="text" value="{{ post.heading if post else '' }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" required />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600">Body</label>
+                    <textarea name="body" rows="7" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" required>{{ post.body if post else '' }}</textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600">Tags (optional)</label>
+                    <input name="tags" type="text" value="{{ post.tags if post else '' }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600">Attachment (optional)</label>
+                    <input name="attachment" type="file" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
+                    {% if post and post.attachment_path %}
+                        <div class="mt-2 text-xs text-slate-500">Current: <a href="/{{ post.attachment_path }}" target="_blank" class="text-indigo-700 hover:text-indigo-900 underline">{{ post.attachment_name or 'file' }}</a></div>
+                    {% endif %}
+                </div>
+
+                <div class="pt-2 flex justify-end">
+                    <button type="submit" class="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all">{% if post %}Save Changes{% else %}Publish{% endif %}</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="mt-4 text-xs text-slate-500 text-center">
+            <a href="{{ url_for('admin_login') }}" class="hover:text-slate-900">Admin Login</a>
+        </div>
+    </div>
+</body>
+
+</html>

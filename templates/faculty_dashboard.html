@@ -70,6 +70,13 @@
                             You can login and view your profile, but protected features will remain locked until approval.
                         {% endif %}
                     </div>
+
+                    {% if st == 'APPROVED' %}
+                        <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <a href="{{ url_for('faculty_news_list') }}" class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all">My Posts</a>
+                            <a href="{{ url_for('faculty_schedules') }}" class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all">Schedules</a>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
