@@ -13,6 +13,7 @@ build/
 venv/
 ENV/
 env/
+*.env
 
 # This project uses a local venv folder
 edu_portal/

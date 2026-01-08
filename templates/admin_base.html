@@ -180,6 +180,7 @@
     </main>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
+    {% block scripts %}{% endblock %}
 
     <!-- Admin Change Password Bottom Sheet -->
     <div id="adminChangePasswordBottomSheet" class="fixed inset-0 z-50 pointer-events-none opacity-0 transition-opacity duration-300" data-auto-open="{% if (request.args.get('ap_error') or request.args.get('ap_success')) %}1{% else %}0{% endif %}">

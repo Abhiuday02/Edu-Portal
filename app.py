@@ -172,6 +172,16 @@ def get_current_admin_id() -> int | None:
         return None
 
 
+def get_current_faculty_id() -> int | None:
+    fid = session.get("faculty_user_id")
+    if fid is None:
+        return None
+    try:
+        return int(fid)
+    except Exception:
+        return None
+
+
 def get_safe_next_url(default_endpoint: str = "dashboard") -> str:
     next_url = (request.args.get("next") or request.form.get("next") or "").strip()
     if next_url.startswith("/") and not next_url.startswith("//"):
@@ -184,6 +194,37 @@ def login_required(fn):
     def wrapper(*args, **kwargs):
         if get_current_student_id() is None:
             return redirect(url_for("login"))
+        return fn(*args, **kwargs)
+
+    return wrapper
+
+
+def faculty_login_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if get_current_faculty_id() is None:
+            return redirect(url_for("faculty_login"))
+        return fn(*args, **kwargs)
+
+    return wrapper
+
+
+def faculty_approved_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        fid = get_current_faculty_id()
+        if fid is None:
+            return redirect(url_for("faculty_login"))
+        db = get_db()
+        faculty_user = db.execute(
+            "SELECT * FROM faculty_users WHERE id = ?",
+            (int(fid),),
+        ).fetchone()
+        if not faculty_user:
+            session.pop("faculty_user_id", None)
+            return redirect(url_for("faculty_login"))
+        if (faculty_user["status"] or "").strip().upper() != "APPROVED":
+            return redirect(url_for("faculty_dashboard"))
         return fn(*args, **kwargs)
 
     return wrapper
@@ -241,6 +282,26 @@ def ensure_students_schedule_id_column(db: sqlite3.Connection) -> None:
     cols = {row[1] for row in db.execute("PRAGMA table_info(students)").fetchall()}
     if "schedule_id" not in cols:
         db.execute("ALTER TABLE students ADD COLUMN schedule_id INTEGER")
+
+
+def ensure_faculty_users_schema(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS faculty_users (
+            id INTEGER PRIMARY KEY,
+            full_name TEXT NOT NULL,
+            department TEXT NOT NULL,
+            faculty_type TEXT NOT NULL,
+            designation TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            phone TEXT NOT NULL,
+            password_hash TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'PENDING',
+            created_at TEXT NOT NULL,
+            updated_at TEXT
+        );
+        """
+    )
 
 
 def ensure_schedule_schema(db: sqlite3.Connection) -> None:
@@ -500,6 +561,20 @@ def init_db() -> None:
                 email TEXT,
                 phone TEXT,
                 created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS faculty_users (
+                id INTEGER PRIMARY KEY,
+                full_name TEXT NOT NULL,
+                department TEXT NOT NULL,
+                faculty_type TEXT NOT NULL,
+                designation TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE,
+                phone TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                created_at TEXT NOT NULL,
+                updated_at TEXT
             );
 
             CREATE TABLE IF NOT EXISTS weekly_timetable (
@@ -784,6 +859,9 @@ def init_db() -> None:
             );
             """
         )
+
+        ensure_news_posts_rich_schema(db)
+        ensure_faculty_users_schema(db)
 
         student_cols = {row[1] for row in db.execute("PRAGMA table_info(students)").fetchall()}
         if "password_hash" not in student_cols:
@@ -1624,7 +1702,11 @@ def inject_student():
     admin_user = None
     if aid is not None:
         admin_user = db.execute("SELECT * FROM admin_users WHERE id = ?", (aid,)).fetchone()
-    return {"student": student, "admin_user": admin_user}
+    fid = get_current_faculty_id()
+    faculty_user = None
+    if fid is not None:
+        faculty_user = db.execute("SELECT * FROM faculty_users WHERE id = ?", (fid,)).fetchone()
+    return {"student": student, "admin_user": admin_user, "faculty_user": faculty_user}
 
 
 @app.get("/login")
@@ -1691,6 +1773,120 @@ def admin_login_post():
 def admin_logout():
     session.pop("admin_user_id", None)
     return redirect(url_for("admin_login"))
+
+
+@app.get("/faculty/register")
+def faculty_register():
+    if get_current_faculty_id() is not None:
+        return redirect(url_for("faculty_dashboard"))
+    return render_template("faculty_register.html", error=None)
+
+
+@app.post("/faculty/register")
+def faculty_register_post():
+    full_name = (request.form.get("full_name") or "").strip()
+    department = (request.form.get("department") or "").strip()
+    faculty_type = (request.form.get("faculty_type") or "").strip()
+    designation = (request.form.get("designation") or "").strip()
+    email = (request.form.get("email") or "").strip().lower()
+    phone = (request.form.get("phone") or "").strip()
+    password = request.form.get("password") or ""
+    confirm_password = request.form.get("confirm_password") or ""
+
+    if (
+        not full_name
+        or not department
+        or not faculty_type
+        or not designation
+        or not email
+        or not phone
+        or not password
+        or not confirm_password
+    ):
+        return render_template("faculty_register.html", error="Please fill all required fields.")
+
+    phone_digits = re.sub(r"\D+", "", phone)[-10:]
+    if not re.fullmatch(r"[6-9]\d{9}", phone_digits):
+        return render_template(
+            "faculty_register.html",
+            error="Please enter a valid 10-digit mobile number (starting with 6-9).",
+        )
+    if password != confirm_password:
+        return render_template("faculty_register.html", error="Passwords do not match.")
+
+    db = get_db()
+    ensure_faculty_users_schema(db)
+
+    exists = db.execute("SELECT id FROM faculty_users WHERE email = ?", (email,)).fetchone()
+    if exists is not None:
+        return render_template(
+            "faculty_register.html",
+            error="An account with this email already exists. Please login instead.",
+        )
+
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    password_hash = generate_password_hash(password)
+    db.execute(
+        """
+        INSERT INTO faculty_users (
+            full_name, department, faculty_type, designation,
+            email, phone, password_hash, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+        """,
+        (full_name, department, faculty_type, designation, email, phone_digits, password_hash, now, now),
+    )
+    fid = int(db.execute("SELECT last_insert_rowid()").fetchone()[0])
+    db.commit()
+    session["faculty_user_id"] = fid
+    return redirect(url_for("faculty_dashboard"))
+
+
+@app.get("/faculty/login")
+def faculty_login():
+    if get_current_faculty_id() is not None:
+        return redirect(url_for("faculty_dashboard"))
+    return render_template("faculty_login.html", error=None)
+
+
+@app.post("/faculty/login")
+def faculty_login_post():
+    email = (request.form.get("email") or "").strip().lower()
+    password = request.form.get("password") or ""
+    if not email or not password:
+        return render_template("faculty_login.html", error="Please enter email and password.")
+
+    db = get_db()
+    ensure_faculty_users_schema(db)
+    faculty_user = db.execute("SELECT * FROM faculty_users WHERE email = ?", (email,)).fetchone()
+    if not faculty_user or not faculty_user["password_hash"] or not check_password_hash(
+        faculty_user["password_hash"], password
+    ):
+        return render_template("faculty_login.html", error="Invalid email or password.")
+
+    session["faculty_user_id"] = int(faculty_user["id"])
+    return redirect(url_for("faculty_dashboard"))
+
+
+@app.get("/faculty/logout")
+def faculty_logout():
+    session.pop("faculty_user_id", None)
+    return redirect(url_for("faculty_login"))
+
+
+@app.get("/faculty")
+@faculty_login_required
+def faculty_dashboard():
+    db = get_db()
+    fid = get_current_faculty_id()
+    faculty_user = db.execute("SELECT * FROM faculty_users WHERE id = ?", (fid,)).fetchone()
+    if not faculty_user:
+        session.pop("faculty_user_id", None)
+        return redirect(url_for("faculty_login"))
+    return render_template(
+        "faculty_dashboard.html",
+        faculty_user=faculty_user,
+        error=None,
+    )
 
 
 @app.get("/admin/change-password")
@@ -1775,6 +1971,79 @@ def admin_dashboard():
         open_forms=int(open_forms),
         error=None,
     )
+
+
+@app.post("/admin/news/quick")
+@admin_login_required
+def admin_news_quick_create():
+    message = (request.form.get("message") or "").strip()
+    if not message:
+        db = get_db()
+        aid = get_current_admin_id()
+        admin_user = db.execute("SELECT * FROM admin_users WHERE id = ?", (aid,)).fetchone()
+        news_count = db.execute("SELECT COUNT(*) FROM news_posts").fetchone()[0]
+        open_forms = 0
+        try:
+            rows = db.execute("SELECT open_from, open_to FROM exam_forms").fetchall()
+            for r in rows:
+                if is_exam_form_open(r["open_from"], r["open_to"]):
+                    open_forms += 1
+        except Exception:
+            open_forms = db.execute("SELECT COUNT(*) FROM exam_forms WHERE status = 'OPEN'").fetchone()[0]
+        return render_template(
+            "admin_dashboard.html",
+            page_title="Admin Panel",
+            page_subtitle="Manage restricted content",
+            active_page="admin",
+            admin_user=admin_user,
+            news_count=int(news_count),
+            open_forms=int(open_forms),
+            error="Please type a message before sending.",
+        )
+
+    priority = (request.form.get("priority") or "").strip().upper() or "NORMAL"
+    heading = (request.form.get("heading") or "").strip() or ""
+    news_type = (request.form.get("news_type") or "").strip()
+    tags = (request.form.get("tags") or "").strip()
+    sender = (request.form.get("sender") or "").strip() or "Admin"
+
+    if not news_type:
+        news_type = "Update"
+
+    body_is_html = 0
+    body = message
+
+    db = get_db()
+    now = datetime.now().isoformat(timespec="seconds")
+    attachment = save_news_attachment(request.files.get("attachment"))
+    attachment_path = attachment[0] if attachment else None
+    attachment_name = attachment[1] if attachment else None
+    attachment_mime = attachment[2] if attachment else None
+
+    db.execute(
+        """
+        INSERT INTO news_posts (
+            priority, date_time, heading, body, sender, news_type, tags,
+            body_is_html, attachment_path, attachment_name, attachment_mime
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            priority,
+            now,
+            heading,
+            body,
+            sender,
+            news_type,
+            tags,
+            int(body_is_html),
+            attachment_path,
+            attachment_name,
+            attachment_mime,
+        ),
+    )
+    db.commit()
+    return redirect(url_for("admin_dashboard"))
 
 
 @app.get("/admin/schedules")
@@ -2219,15 +2488,105 @@ def admin_teachers():
             continue
         teachers.append(t)
 
+    faculty_rows = db.execute(
+        "SELECT * FROM faculty_users ORDER BY datetime(created_at) DESC"
+    ).fetchall()
+
     return render_template(
         "admin_teachers.html",
         page_title="Teachers",
         page_subtitle="Manage faculty list",
         active_page="admin_teachers",
         teachers=teachers,
+        faculty_users=faculty_rows,
         filters=filters,
         error=None,
     )
+
+
+@app.post("/admin/faculty/<int:faculty_id>/approve")
+@admin_login_required
+def admin_faculty_approve(faculty_id: int):
+    db = get_db()
+    ensure_faculty_users_schema(db)
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    db.execute(
+        "UPDATE faculty_users SET status = 'APPROVED', updated_at = ? WHERE id = ?",
+        (now, int(faculty_id)),
+    )
+    db.commit()
+    return redirect(url_for("admin_teachers"))
+
+
+@app.post("/admin/faculty/<int:faculty_id>/reject")
+@admin_login_required
+def admin_faculty_reject(faculty_id: int):
+    db = get_db()
+    ensure_faculty_users_schema(db)
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    db.execute(
+        "UPDATE faculty_users SET status = 'REJECTED', updated_at = ? WHERE id = ?",
+        (now, int(faculty_id)),
+    )
+    db.commit()
+    return redirect(url_for("admin_teachers"))
+
+
+@app.post("/admin/faculty/<int:faculty_id>/delete")
+@admin_login_required
+def admin_faculty_delete(faculty_id: int):
+    db = get_db()
+    ensure_faculty_users_schema(db)
+    db.execute("DELETE FROM faculty_users WHERE id = ?", (int(faculty_id),))
+    db.commit()
+    return redirect(url_for("admin_teachers"))
+
+
+@app.post("/admin/faculty/<int:faculty_id>/update")
+@admin_login_required
+def admin_faculty_update(faculty_id: int):
+    full_name = (request.form.get("full_name") or "").strip()
+    department = (request.form.get("department") or "").strip()
+    faculty_type = (request.form.get("faculty_type") or "").strip()
+    designation = (request.form.get("designation") or "").strip()
+    email = (request.form.get("email") or "").strip().lower()
+    phone = (request.form.get("phone") or "").strip()
+    status = (request.form.get("status") or "").strip().upper()
+
+    if not full_name or not department or not faculty_type or not designation or not email or not phone:
+        return redirect(url_for("admin_teachers"))
+
+    phone_digits = re.sub(r"\D+", "", phone)[-10:]
+    if not re.fullmatch(r"[6-9]\d{9}", phone_digits):
+        return redirect(url_for("admin_teachers"))
+
+    if status not in {"PENDING", "APPROVED", "REJECTED"}:
+        status = "PENDING"
+
+    db = get_db()
+    ensure_faculty_users_schema(db)
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    db.execute(
+        """
+        UPDATE faculty_users
+        SET full_name = ?, department = ?, faculty_type = ?, designation = ?,
+            email = ?, phone = ?, status = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (
+            full_name,
+            department,
+            faculty_type,
+            designation,
+            email,
+            phone_digits,
+            status,
+            now,
+            int(faculty_id),
+        ),
+    )
+    db.commit()
+    return redirect(url_for("admin_teachers"))
 
 
 @app.post("/admin/teachers/<int:teacher_id>/update")
@@ -4642,6 +5001,6 @@ if __name__ == "__main__":
     debug = (os.getenv("FLASK_DEBUG", "").strip() == "1") or (
         os.getenv("DEBUG", "").strip().lower() in {"1", "true", "yes"}
     )
-    host = os.getenv("HOST", "127.0.0.1")
+    host = os.getenv("HOST", "192.168.31.138")
     port = int(os.getenv("PORT", "5000"))
     app.run(host=host, port=port, debug=debug)

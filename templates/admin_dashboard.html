@@ -7,8 +7,103 @@
 </div>
 {% endif %}
 
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="admin-card p-5">
+<div class="md:hidden admin-card p-4 mb-4">
+    <div class="flex items-center justify-between gap-3">
+        <div>
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Quick Message</p>
+            <p class="text-sm text-slate-600 mt-1">Post an update fast (sender: <span class="font-semibold text-slate-900">Admin</span>)</p>
+        </div>
+        <button type="button" class="admin-btn admin-btn-soft" data-quick-advanced-toggle>
+            <span class="iconify text-base text-indigo-600" data-icon="solar:settings-outline"></span>
+            Advanced
+        </button>
+    </div>
+
+    <form method="post" action="{{ url_for('admin_news_quick_create') }}" enctype="multipart/form-data" class="mt-4 space-y-3" data-quick-form>
+        <input type="hidden" name="sender" value="Admin" />
+
+        <div class="flex items-stretch gap-2">
+            <textarea
+                name="message"
+                rows="2"
+                class="admin-input flex-1 resize-none h-12 py-3 leading-5"
+                placeholder="Type a quick announcement…"
+                required
+            ></textarea>
+
+            <label class="admin-btn admin-btn-soft cursor-pointer inline-flex items-center justify-center gap-2 shrink-0 h-12 w-12 sm:w-auto" title="Attach">
+                <span class="iconify text-base text-indigo-600" data-icon="solar:paperclip-2-linear"></span>
+                <span class="hidden sm:inline">Attach</span>
+                <input type="file" name="attachment" class="hidden" data-quick-attachment>
+            </label>
+            <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center justify-center gap-2 shrink-0 h-12 w-12 sm:w-auto" title="Send">
+                <span class="iconify text-base text-white" data-icon="solar:arrow-right-outline"></span>
+                <span class="hidden sm:inline">Send</span>
+            </button>
+        </div>
+
+        <p class="text-xs text-slate-500" data-quick-attachment-label></p>
+
+        <div class="fixed inset-0 z-50 pointer-events-none opacity-0 transition-opacity duration-200" data-quick-advanced-popup>
+            <div class="absolute inset-0 bg-black/50 pointer-events-none" data-quick-advanced-backdrop></div>
+            <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transform translate-y-full transition-transform duration-200 pointer-events-auto max-h-[85vh] overflow-hidden" data-quick-advanced-sheet>
+                <div class="flex justify-center py-3" data-quick-advanced-handle style="touch-action: none;">
+                    <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+                </div>
+                <div class="px-6 pb-4 border-b border-slate-200 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-500">Quick Message</p>
+                        <p class="text-lg font-semibold text-slate-900">Advanced Options</p>
+                    </div>
+                    <button type="button" class="admin-btn admin-btn-soft" data-quick-advanced-close>
+                        <span class="iconify text-base text-slate-600" data-icon="solar:close-square-outline"></span>
+                        Close
+                    </button>
+                </div>
+
+                <div class="p-6 overflow-y-auto" style="max-height: calc(85vh - 120px);">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Priority (optional)</label>
+                            <select name="priority" class="admin-input w-full">
+                                <option value="">Default</option>
+                                <option value="URGENT">URGENT</option>
+                                <option value="HIGH">HIGH</option>
+                                <option value="NORMAL">NORMAL</option>
+                                <option value="LOW">LOW</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Type (optional)</label>
+                            <input name="news_type" type="text" placeholder="e.g. Notice" class="admin-input w-full" />
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Heading (optional)</label>
+                        <input name="heading" type="text" placeholder="Title (optional)" class="admin-input w-full" />
+                        <p class="text-xs text-slate-500 mt-2">Leave empty to post without a heading.</p>
+                    </div>
+
+                    <div class="mt-4">
+                        <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Tags (optional)</label>
+                        <input name="tags" type="text" placeholder="Comma-separated tags" class="admin-input w-full" />
+                    </div>
+
+                    <div class="mt-6 flex items-center justify-end gap-2">
+                        <button type="button" class="admin-btn admin-btn-primary" data-quick-advanced-done>
+                            <span class="iconify text-base" data-icon="solar:check-circle-bold"></span>
+                            Done
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+    <div class="admin-card p-4 sm:p-5">
         <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">News Posts</p>
         <p class="mt-2 text-2xl font-semibold text-slate-900">{{ news_count }}</p>
         <div class="mt-4 flex flex-wrap gap-2">
@@ -16,7 +111,7 @@
             <a href="{{ url_for('admin_news_new') }}" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:add-square-bold"></span> New</a>
         </div>
     </div>
-    <div class="admin-card p-5">
+    <div class="admin-card p-4 sm:p-5">
         <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Exam Forms</p>
         <p class="mt-2 text-2xl font-semibold text-slate-900">{{ open_forms }} <span class="text-sm font-medium text-slate-500">open</span></p>
         <div class="mt-4 flex flex-wrap gap-2">
@@ -24,25 +119,123 @@
             <a href="{{ url_for('admin_exam_form_new') }}" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:add-square-bold"></span> New</a>
         </div>
     </div>
-    <div class="admin-card p-5">
+    <div class="admin-card p-4 sm:p-5">
         <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Schedules</p>
         <p class="mt-2 text-sm text-slate-600">Manage events and weekly timetable</p>
         <a href="{{ url_for('admin_schedules') }}" class="mt-4 admin-btn admin-btn-soft inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:calendar-outline"></span> Open</a>
     </div>
-    <div class="admin-card p-5">
+    <div class="admin-card p-4 sm:p-5">
         <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Teachers</p>
         <p class="mt-2 text-sm text-slate-600">Maintain faculty directory</p>
         <a href="{{ url_for('admin_teachers') }}" class="mt-4 admin-btn admin-btn-soft inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:users-group-rounded-outline"></span> Open</a>
     </div>
-    <div class="admin-card p-5">
+    <div class="admin-card p-4 sm:p-5">
         <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Student Portal</p>
         <p class="mt-2 text-sm text-slate-600">Jump to student dashboard</p>
         <a href="{{ url_for('dashboard') }}" class="mt-4 admin-btn admin-btn-soft inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:home-2-outline"></span> Go</a>
     </div>
-    <div class="admin-card p-5">
+    <div class="admin-card p-4 sm:p-5">
         <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Signed In As</p>
         <p class="mt-2 text-sm font-semibold text-slate-900">{{ admin_user.full_name if admin_user else 'Admin' }}</p>
         <p class="text-xs text-slate-500">Role: {{ admin_user.role if admin_user else '' }}</p>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function() {
+        const toggleBtn = document.querySelector('[data-quick-advanced-toggle]');
+        const popup = document.querySelector('[data-quick-advanced-popup]');
+        const sheet = document.querySelector('[data-quick-advanced-sheet]');
+        const backdrop = document.querySelector('[data-quick-advanced-backdrop]');
+        const handle = document.querySelector('[data-quick-advanced-handle]');
+        const closeBtn = document.querySelector('[data-quick-advanced-close]');
+        const doneBtn = document.querySelector('[data-quick-advanced-done]');
+        const attachment = document.querySelector('[data-quick-attachment]');
+        const attachmentLabel = document.querySelector('[data-quick-attachment-label]');
+
+        function openAdvanced() {
+            if (!popup || !sheet || !backdrop) return;
+            popup.classList.remove('pointer-events-none', 'opacity-0');
+            popup.classList.add('opacity-100');
+            backdrop.classList.remove('pointer-events-none');
+            sheet.classList.remove('translate-y-full');
+        }
+
+        function closeAdvanced() {
+            if (!popup || !sheet || !backdrop) return;
+            sheet.classList.add('translate-y-full');
+            popup.classList.remove('opacity-100');
+            popup.classList.add('opacity-0');
+            backdrop.classList.add('pointer-events-none');
+            setTimeout(() => {
+                popup.classList.add('pointer-events-none');
+            }, 200);
+        }
+
+        if (toggleBtn) toggleBtn.addEventListener('click', openAdvanced);
+        if (closeBtn) closeBtn.addEventListener('click', closeAdvanced);
+        if (doneBtn) doneBtn.addEventListener('click', closeAdvanced);
+        if (backdrop) backdrop.addEventListener('click', closeAdvanced);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeAdvanced();
+        });
+
+        // Swipe down to close (handle area only)
+        let dragStartY = 0;
+        let dragging = false;
+        let dragDelta = 0;
+
+        function onPointerDown(e) {
+            if (!sheet) return;
+            dragging = true;
+            dragDelta = 0;
+            dragStartY = e.clientY;
+            sheet.style.transition = 'none';
+            try {
+                e.target.setPointerCapture(e.pointerId);
+            } catch (err) {
+                // ignore
+            }
+        }
+
+        function onPointerMove(e) {
+            if (!dragging || !sheet) return;
+            const dy = e.clientY - dragStartY;
+            dragDelta = Math.max(0, dy);
+            sheet.style.transform = `translateY(${dragDelta}px)`;
+        }
+
+        function onPointerUp() {
+            if (!dragging || !sheet) return;
+            dragging = false;
+            sheet.style.transition = '';
+
+            const closeThreshold = 90;
+            if (dragDelta > closeThreshold) {
+                sheet.style.transform = '';
+                closeAdvanced();
+                return;
+            }
+
+            // snap back
+            sheet.style.transform = '';
+        }
+
+        if (handle) {
+            handle.addEventListener('pointerdown', onPointerDown);
+            handle.addEventListener('pointermove', onPointerMove);
+            handle.addEventListener('pointerup', onPointerUp);
+            handle.addEventListener('pointercancel', onPointerUp);
+        }
+
+        if (attachment && attachmentLabel) {
+            attachment.addEventListener('change', () => {
+                const f = attachment.files && attachment.files[0];
+                attachmentLabel.textContent = f ? ('Attachment: ' + f.name) : '';
+            });
+        }
+    })();
+</script>
 {% endblock %}
