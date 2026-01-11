@@ -1,43 +1,35 @@
-{% extends "admin_base.html" %}
+{% extends "faculty_base.html" %}
 
 {% block content %}
-{% if error %}
-<div class="mb-4 admin-card border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-    {{ error }}
-</div>
-{% endif %}
-
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
-    <div class="admin-card p-4 sm:p-5 lg:col-span-2">
+    <div class="minimal-card p-4 sm:p-5 lg:col-span-2">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
                 <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Quick Message</p>
-                <p class="text-sm text-slate-600 mt-1">Post an update fast (sender: <span class="font-semibold text-slate-900">Admin</span>)</p>
+                <p class="text-sm text-slate-600 mt-1">Post an update fast (sender: <span class="font-semibold text-slate-900">{{ faculty_user.full_name }}</span>)</p>
             </div>
-            <button type="button" class="admin-btn admin-btn-soft" data-quick-advanced-toggle>
+            <button type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center justify-center gap-2" data-quick-advanced-toggle>
                 <span class="iconify text-base text-indigo-600" data-icon="solar:settings-outline"></span>
                 Advanced
             </button>
         </div>
 
-        <form method="post" action="{{ url_for('admin_news_quick_create') }}" enctype="multipart/form-data" class="mt-4 space-y-3" data-quick-form>
-            <input type="hidden" name="sender" value="Admin" />
-
+        <form method="post" action="{{ url_for('faculty_news_quick_create') }}" enctype="multipart/form-data" class="mt-4 space-y-3" data-quick-form>
             <div class="flex items-stretch gap-2">
                 <textarea
                     name="message"
                     rows="2"
-                    class="admin-input flex-1 resize-none h-12 py-3 leading-5"
+                    class="minimal-input flex-1 resize-none h-12 py-3 leading-5"
                     placeholder="Type a quick announcement…"
                     required
                 ></textarea>
 
-                <label class="admin-btn admin-btn-soft cursor-pointer inline-flex items-center justify-center gap-2 shrink-0 h-12 w-12 sm:w-auto" title="Attach">
+                <label class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all cursor-pointer inline-flex items-center justify-center gap-2 shrink-0 h-12 w-12 sm:w-auto" title="Attach">
                     <span class="iconify text-base text-indigo-600" data-icon="solar:paperclip-2-linear"></span>
                     <span class="hidden sm:inline">Attach</span>
                     <input type="file" name="attachment" class="hidden" data-quick-attachment>
                 </label>
-                <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center justify-center gap-2 shrink-0 h-12 w-12 sm:w-auto" title="Send">
+                <button type="submit" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary inline-flex items-center justify-center gap-2 shrink-0 h-12 w-12 sm:w-auto" title="Send">
                     <span class="iconify text-base text-white" data-icon="solar:arrow-right-outline"></span>
                     <span class="hidden sm:inline">Send</span>
                 </button>
@@ -56,7 +48,7 @@
                             <p class="text-xs text-slate-500">Quick Message</p>
                             <p class="text-lg font-semibold text-slate-900">Advanced Options</p>
                         </div>
-                        <button type="button" class="admin-btn admin-btn-soft" data-quick-advanced-close>
+                        <button type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center justify-center gap-2" data-quick-advanced-close>
                             <span class="iconify text-base text-slate-600" data-icon="solar:close-square-outline"></span>
                             Close
                         </button>
@@ -66,7 +58,7 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Priority (optional)</label>
-                                <select name="priority" class="admin-input w-full">
+                                <select name="priority" class="minimal-input w-full">
                                     <option value="">Default</option>
                                     <option value="URGENT">URGENT</option>
                                     <option value="HIGH">HIGH</option>
@@ -76,23 +68,23 @@
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Type (optional)</label>
-                                <input name="news_type" type="text" placeholder="e.g. Notice" class="admin-input w-full" />
+                                <input name="news_type" type="text" placeholder="e.g. Notice" class="minimal-input w-full" />
                             </div>
                         </div>
 
                         <div class="mt-4">
                             <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Heading (optional)</label>
-                            <input name="heading" type="text" placeholder="Title (optional)" class="admin-input w-full" />
+                            <input name="heading" type="text" placeholder="Title (optional)" class="minimal-input w-full" />
                             <p class="text-xs text-slate-500 mt-2">Leave empty to post without a heading.</p>
                         </div>
 
                         <div class="mt-4">
                             <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Tags (optional)</label>
-                            <input name="tags" type="text" placeholder="Comma-separated tags" class="admin-input w-full" />
+                            <input name="tags" type="text" placeholder="Comma-separated tags" class="minimal-input w-full" />
                         </div>
 
                         <div class="mt-6 flex items-center justify-end gap-2">
-                            <button type="button" class="admin-btn admin-btn-primary" data-quick-advanced-done>
+                            <button type="button" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary" data-quick-advanced-done>
                                 <span class="iconify text-base" data-icon="solar:check-circle-bold"></span>
                                 Done
                             </button>
@@ -101,48 +93,77 @@
                 </div>
             </div>
         </form>
-    </div>
 
-    <div class="admin-card p-4 sm:p-5">
-        <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">News Posts</p>
-        <p class="mt-2 text-2xl font-semibold text-slate-900">{{ news_count }}</p>
-        <div class="mt-4 flex flex-wrap gap-2">
-            <a href="{{ url_for('admin_news_list') }}" class="admin-btn admin-btn-soft inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:settings-outline"></span> Manage</a>
-            <a href="{{ url_for('admin_news_new') }}" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:add-square-bold"></span> New</a>
+        <div class="mt-6">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Quick Access</p>
+            <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <a href="{{ url_for('faculty_news_list') }}" class="rounded-2xl border border-slate-200 bg-slate-50 p-4 hover:bg-slate-100 transition-all">
+                    <div class="text-sm font-semibold text-slate-900">News</div>
+                    <div class="mt-1 text-xs text-slate-500">View institute-wide posts and messages.</div>
+                </a>
+                <a href="{{ url_for('faculty_schedules') }}" class="rounded-2xl border border-slate-200 bg-slate-50 p-4 hover:bg-slate-100 transition-all">
+                    <div class="text-sm font-semibold text-slate-900">Schedules</div>
+                    <div class="mt-1 text-xs text-slate-500">Weekly timetable + calendar view.</div>
+                </a>
+                <a href="{{ url_for('faculty_resources') }}" class="rounded-2xl border border-slate-200 bg-slate-50 p-4 hover:bg-slate-100 transition-all">
+                    <div class="text-sm font-semibold text-slate-900">Resources</div>
+                    <div class="mt-1 text-xs text-slate-500">Upload teaching resources for everyone.</div>
+                </a>
+                <a href="{{ url_for('faculty_vault') }}" class="rounded-2xl border border-slate-200 bg-slate-50 p-4 hover:bg-slate-100 transition-all">
+                    <div class="text-sm font-semibold text-slate-900">Vault</div>
+                    <div class="mt-1 text-xs text-slate-500">Private storage with folders.</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="mt-6">
+            {% set day_names = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Today's Schedule</p>
+                    <p class="text-sm text-slate-600 mt-1">{{ day_names[today_dow] if today_dow is not none else 'Today' }}</p>
+                </div>
+                <a href="{{ url_for('faculty_schedules') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center gap-2">
+                    <span class="iconify text-base text-indigo-600" data-icon="solar:calendar-outline"></span>
+                    Open
+                </a>
+            </div>
+
+            <div class="mt-3 space-y-2">
+                {% if today_rows and today_rows|length > 0 %}
+                    {% for r in today_rows %}
+                        <div class="p-4 rounded-xl border border-slate-200 bg-white">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-900">{{ r.subject }}</p>
+                                    <p class="text-xs text-slate-500 mt-1">{{ r.room }}</p>
+                                </div>
+                                <span class="minimal-badge bg-slate-100 text-slate-700">{{ r.start_time }}–{{ r.end_time }}</span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-600">No classes scheduled for today.</div>
+                {% endif %}
+            </div>
         </div>
     </div>
 
-    <div class="admin-card p-4 sm:p-5">
-        <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Exam Forms</p>
-        <p class="mt-2 text-2xl font-semibold text-slate-900">{{ open_forms }} <span class="text-sm font-medium text-slate-500">open</span></p>
-        <div class="mt-4 flex flex-wrap gap-2">
-            <a href="{{ url_for('admin_exam_forms') }}" class="admin-btn admin-btn-soft inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:settings-outline"></span> Manage</a>
-            <a href="{{ url_for('admin_exam_form_new') }}" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:add-square-bold"></span> New</a>
-        </div>
-    </div>
-
-    <div class="admin-card p-4 sm:p-5">
-        <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Schedules</p>
-        <p class="mt-2 text-sm text-slate-600">Manage events and weekly timetable</p>
-        <a href="{{ url_for('admin_schedules') }}" class="mt-4 admin-btn admin-btn-soft inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:calendar-outline"></span> Open</a>
-    </div>
-
-    <div class="admin-card p-4 sm:p-5">
-        <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Teachers</p>
-        <p class="mt-2 text-sm text-slate-600">Maintain faculty directory</p>
-        <a href="{{ url_for('admin_teachers') }}" class="mt-4 admin-btn admin-btn-soft inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:users-group-rounded-outline"></span> Open</a>
-    </div>
-
-    <div class="admin-card p-4 sm:p-5">
-        <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Student Portal</p>
-        <p class="mt-2 text-sm text-slate-600">Jump to student dashboard</p>
-        <a href="{{ url_for('dashboard') }}" class="mt-4 admin-btn admin-btn-soft inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:home-2-outline"></span> Go</a>
-    </div>
-
-    <div class="admin-card p-4 sm:p-5">
+    <div class="minimal-card p-4 sm:p-5">
         <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Signed In As</p>
-        <p class="mt-2 text-sm font-semibold text-slate-900">{{ admin_user.full_name if admin_user else 'Admin' }}</p>
-        <p class="text-xs text-slate-500">Role: {{ admin_user.role if admin_user else '' }}</p>
+        <p class="mt-2 text-sm font-semibold text-slate-900">{{ faculty_user.full_name }}</p>
+        <p class="text-xs text-slate-500">{{ faculty_user.designation }} · {{ faculty_user.department }}</p>
+        <a href="{{ url_for('faculty_profile') }}" class="mt-4 px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center justify-center gap-2 w-full">Open Profile</a>
+    </div>
+
+    <div class="minimal-card p-4 sm:p-5">
+        <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Quick Links</p>
+        <div class="mt-4 flex flex-wrap gap-2">
+            <a href="{{ url_for('faculty_news_list') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:document-text-outline"></span> My News</a>
+            <a href="{{ url_for('faculty_schedules') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:calendar-outline"></span> Schedules</a>
+            <a href="{{ url_for('faculty_resources') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:book-2-outline"></span> Resources</a>
+            <a href="{{ url_for('faculty_vault') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:folder-with-files-outline"></span> Vault</a>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -187,7 +208,13 @@
             if (e.key === 'Escape') closeAdvanced();
         });
 
-        // Swipe down to close (handle area only)
+        if (attachment && attachmentLabel) {
+            attachment.addEventListener('change', () => {
+                const f = attachment.files && attachment.files[0];
+                attachmentLabel.textContent = f ? `Attachment: ${f.name}` : '';
+            });
+        }
+
         let dragStartY = 0;
         let dragging = false;
         let dragDelta = 0;
@@ -216,16 +243,12 @@
             if (!dragging || !sheet) return;
             dragging = false;
             sheet.style.transition = '';
+            sheet.style.transform = '';
 
             const closeThreshold = 90;
             if (dragDelta > closeThreshold) {
-                sheet.style.transform = '';
                 closeAdvanced();
-                return;
             }
-
-            // snap back
-            sheet.style.transform = '';
         }
 
         if (handle) {
@@ -233,13 +256,6 @@
             handle.addEventListener('pointermove', onPointerMove);
             handle.addEventListener('pointerup', onPointerUp);
             handle.addEventListener('pointercancel', onPointerUp);
-        }
-
-        if (attachment && attachmentLabel) {
-            attachment.addEventListener('change', () => {
-                const f = attachment.files && attachment.files[0];
-                attachmentLabel.textContent = f ? ('Attachment: ' + f.name) : '';
-            });
         }
     })();
 </script>

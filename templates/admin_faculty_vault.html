@@ -1,0 +1,123 @@
+{% extends "admin_base.html" %}
+
+{% block content %}
+{% if error %}
+<div class="mb-4 admin-card border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+    {{ error }}
+</div>
+{% endif %}
+
+<div class="admin-card p-6">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+            <h2 class="text-lg font-semibold text-slate-900">Faculty Vault</h2>
+            <p class="text-sm text-slate-500 mt-1">Managing: <span class="font-semibold text-slate-900">{{ faculty_user.full_name }}</span> ({{ faculty_user.department }})</p>
+        </div>
+        <a href="{{ url_for('admin_teachers') }}" class="admin-btn admin-btn-soft">Back</a>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-1">
+            <div class="admin-card border border-slate-200 bg-white p-5">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm font-semibold text-slate-900">Folders</div>
+                    <div class="text-xs text-slate-500">{{ (vault_folders|length) if vault_folders else 0 }} total</div>
+                </div>
+
+                <form method="post" action="{{ url_for('admin_faculty_vault_folder_create', faculty_id=faculty_user.id) }}" class="mt-3 flex gap-2">
+                    <input name="name" class="admin-input w-full" placeholder="New folder name" required>
+                    <button type="submit" class="admin-btn admin-btn-primary">Create</button>
+                </form>
+
+                <div class="mt-4 space-y-2">
+                    {% if vault_folders %}
+                        {% for f in vault_folders %}
+                            <div class="flex items-center gap-2">
+                                <a href="{{ url_for('admin_faculty_vault', faculty_id=faculty_user.id, folder_id=f.id) }}" class="flex-1 px-3 py-2 rounded-xl border text-sm font-semibold transition-all {% if selected_folder and selected_folder.id == f.id %}border-indigo-200 bg-indigo-50 text-indigo-700{% else %}border-slate-200 bg-white text-slate-700 hover:bg-slate-50{% endif %}">
+                                    <span class="inline-flex items-center gap-2">
+                                        <span class="iconify text-base" data-icon="solar:folder-with-files-bold"></span>
+                                        <span class="truncate">{{ f.name }}</span>
+                                    </span>
+                                </a>
+                                <form method="post" action="{{ url_for('admin_faculty_vault_folder_delete', faculty_id=faculty_user.id, folder_id=f.id) }}" onsubmit="return confirm('Delete this folder and all files inside it?');">
+                                    <button type="submit" class="admin-btn admin-btn-danger">Delete</button>
+                                </form>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">No folders yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-2">
+            <div class="admin-card border border-slate-200 bg-white p-5">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div>
+                        <div class="text-sm font-semibold text-slate-900">Files</div>
+                        <div class="text-xs text-slate-500 mt-1">
+                            {% if selected_folder %}
+                                Folder: <span class="text-slate-700 font-semibold">{{ selected_folder.name }}</span>
+                            {% else %}
+                                Select a folder to see files
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <form method="post" action="{{ url_for('admin_faculty_vault_file_upload', faculty_id=faculty_user.id) }}" enctype="multipart/form-data" class="grid grid-cols-1 md:grid-cols-6 gap-3">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-semibold tracking-wide uppercase text-slate-500">Folder</label>
+                            <select name="folder_id" class="mt-2 admin-input w-full" {% if not vault_folders %}disabled{% endif %} required>
+                                {% if vault_folders %}
+                                    {% for f in vault_folders %}
+                                        <option value="{{ f.id }}"{% if selected_folder and selected_folder.id == f.id %} selected{% endif %}>{{ f.name }}</option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="">Create a folder first</option>
+                                {% endif %}
+                            </select>
+                        </div>
+                        <div class="md:col-span-4">
+                            <label class="block text-xs font-semibold tracking-wide uppercase text-slate-500">Upload File</label>
+                            <input type="file" name="file" class="mt-2 block w-full text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200" {% if not vault_folders %}disabled{% endif %} required>
+                        </div>
+                        <div class="md:col-span-6 flex items-center justify-end">
+                            <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2" {% if not vault_folders %}disabled{% endif %}>
+                                <span class="iconify text-base" data-icon="solar:upload-bold"></span>
+                                Upload
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="mt-5 space-y-2">
+                    {% if vault_files %}
+                        {% for vf in vault_files %}
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3">
+                                <div class="min-w-0">
+                                    <div class="text-sm font-semibold text-slate-900 truncate">{{ vf.original_name }}</div>
+                                    <div class="text-xs text-slate-500 mt-1">{{ vf.uploaded_at|fmt_dt }}{% if vf.mime %} · {{ vf.mime }}{% endif %}{% if vf.size_bytes is not none %} · {{ vf.size_bytes }} bytes{% endif %}</div>
+                                </div>
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <a href="{{ url_for('admin_faculty_vault_file_download', faculty_id=faculty_user.id, file_id=vf.id) }}" class="admin-btn admin-btn-primary inline-flex items-center gap-2">
+                                        <span class="iconify text-base" data-icon="solar:download-bold"></span>
+                                        Download
+                                    </a>
+                                    <form method="post" action="{{ url_for('admin_faculty_vault_file_delete', faculty_id=faculty_user.id, file_id=vf.id) }}" onsubmit="return confirm('Delete this file?');">
+                                        <button type="submit" class="admin-btn admin-btn-danger">Delete</button>
+                                    </form>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="rounded-xl border border-dashed border-slate-200 p-5 text-sm text-slate-500">No files yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

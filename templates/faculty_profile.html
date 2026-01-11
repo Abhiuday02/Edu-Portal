@@ -1,0 +1,16 @@
+{% extends "faculty_base.html" %}
+
+{% block content %}
+<div class="faculty-card p-5">
+    <div class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Account Information</div>
+    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+        <div class="flex items-center justify-between gap-3"><span class="text-slate-500">Full Name</span><span class="font-medium text-slate-900">{{ faculty_user.full_name }}</span></div>
+        <div class="flex items-center justify-between gap-3"><span class="text-slate-500">Department</span><span class="font-medium text-slate-900">{{ faculty_user.department }}</span></div>
+        <div class="flex items-center justify-between gap-3"><span class="text-slate-500">Type</span><span class="font-medium text-slate-900">{{ faculty_user.faculty_type }}</span></div>
+        <div class="flex items-center justify-between gap-3"><span class="text-slate-500">Designation</span><span class="font-medium text-slate-900">{{ faculty_user.designation }}</span></div>
+        <div class="flex items-center justify-between gap-3"><span class="text-slate-500">Email</span><span class="font-medium text-slate-900">{{ faculty_user.email }}</span></div>
+        <div class="flex items-center justify-between gap-3"><span class="text-slate-500">Phone</span><span class="font-medium text-slate-900">{{ faculty_user.phone }}</span></div>
+        <div class="flex items-center justify-between gap-3"><span class="text-slate-500">Status</span><span class="font-medium text-slate-900">{{ faculty_user.status }}</span></div>
+    </div>
+</div>
+{% endblock %}

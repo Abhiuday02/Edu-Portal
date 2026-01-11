@@ -324,6 +324,14 @@
                                             <button type="submit" class="admin-btn admin-btn-soft text-xs inline-flex items-center gap-2"><span class="iconify text-sm" data-icon="solar:close-circle-bold"></span> Reject</button>
                                         </form>
                                     {% endif %}
+                                    <a href="{{ url_for('admin_faculty_weekly', faculty_id=f.id) }}" class="admin-btn admin-btn-soft text-xs inline-flex items-center gap-2">
+                                        <span class="iconify text-sm" data-icon="solar:calendar-outline"></span>
+                                        Weekly
+                                    </a>
+                                    <a href="{{ url_for('admin_faculty_vault', faculty_id=f.id) }}" class="admin-btn admin-btn-soft text-xs inline-flex items-center gap-2">
+                                        <span class="iconify text-sm" data-icon="solar:folder-with-files-outline"></span>
+                                        Vault
+                                    </a>
                                     <button
                                         type="button"
                                         class="admin-btn admin-btn-soft text-xs inline-flex items-center gap-2"

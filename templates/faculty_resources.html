@@ -1,0 +1,86 @@
+{% extends "faculty_base.html" %}
+
+{% block content %}
+{% if error %}
+<div class="mb-4 faculty-card border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+    {{ error }}
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="lg:col-span-1 faculty-card p-5 bg-slate-50">
+        <div class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Upload Resource</div>
+        <div class="mt-1 text-sm text-slate-600">Visible to everyone in Library.</div>
+
+        <form method="post" action="{{ url_for('faculty_resources_upload') }}" enctype="multipart/form-data" class="mt-4 space-y-3">
+            <div>
+                <label class="block text-xs font-semibold tracking-wide uppercase text-slate-500">Heading</label>
+                <input name="heading" class="mt-2 w-full faculty-input" placeholder="e.g. DBMS Unit-2 Notes" required>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold tracking-wide uppercase text-slate-500">Description</label>
+                <input name="description" class="mt-2 w-full faculty-input" placeholder="Short description" required>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold tracking-wide uppercase text-slate-500">Tags (optional)</label>
+                <input name="tags" class="mt-2 w-full faculty-input" placeholder="comma,separated,tags">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold tracking-wide uppercase text-slate-500">External PDF URL (optional)</label>
+                <input name="pdf_url" class="mt-2 w-full faculty-input" placeholder="https://...pdf">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold tracking-wide uppercase text-slate-500">Or Upload PDF (optional)</label>
+                <input type="file" name="pdf_file" accept="application/pdf" class="mt-2 block w-full text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200">
+                <p class="text-xs text-slate-400 mt-2">Provide either External URL or Upload a PDF file.</p>
+            </div>
+
+            <button type="submit" class="w-full faculty-btn faculty-btn-primary inline-flex items-center justify-center gap-2">
+                <span class="iconify text-base" data-icon="solar:upload-bold"></span>
+                Upload
+            </button>
+        </form>
+    </div>
+
+    <div class="lg:col-span-2 faculty-card p-5">
+        <div class="flex items-start justify-between gap-3">
+            <div>
+                <div class="text-xs uppercase tracking-wider text-slate-500 font-semibold">My Uploads</div>
+                <div class="mt-1 text-sm text-slate-600">Manage resources uploaded from your faculty account.</div>
+            </div>
+            <a href="{{ url_for('library') }}" class="faculty-btn faculty-btn-soft inline-flex items-center gap-2">
+                <span class="iconify text-base" data-icon="solar:book-2-outline"></span>
+                Open Library
+            </a>
+        </div>
+
+        <div class="mt-5 space-y-3">
+            {% if my_resources and my_resources|length > 0 %}
+                {% for r in my_resources %}
+                    {% set href = (url_for('static', filename=r.pdf_url) if r.pdf_url and not (r.pdf_url.startswith('http://') or r.pdf_url.startswith('https://')) else r.pdf_url) %}
+                    <div class="p-4 rounded-2xl border border-slate-200 bg-white flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="text-sm font-semibold text-slate-900 break-words">{{ r.heading }}</div>
+                            <div class="text-xs text-slate-500 mt-1">{{ r.description }}</div>
+                            <div class="mt-2 text-xs text-slate-500">Uploaded: {{ r.uploaded_at|fmt_dt }}</div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <a href="{{ href }}" target="_blank" class="faculty-btn faculty-btn-soft inline-flex items-center gap-2">
+                                <span class="iconify text-base" data-icon="solar:eye-bold"></span>
+                                Open
+                            </a>
+                            <form method="post" action="{{ url_for('faculty_resources_delete', resource_id=r.id) }}" onsubmit="return confirm('Delete this resource?');">
+                                <button type="submit" class="faculty-btn" style="background:#fff1f2;color:#be123c;">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="rounded-xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
+                    No uploads yet.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

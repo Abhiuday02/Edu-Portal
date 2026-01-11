@@ -19,13 +19,12 @@
                     </div>
                     <div>
                         <div class="text-xs uppercase tracking-[0.2em] text-slate-500 font-semibold">EduPortal</div>
-                        <div class="text-lg font-semibold text-slate-900">{% if post %}Edit Post{% else %}Create Post{% endif %}</div>
-                        <div class="text-xs text-slate-500 mt-1">Sender: <span class="font-semibold text-slate-900">{{ faculty_user.full_name }}</span></div>
+                        <div class="text-lg font-semibold text-slate-900">{% if post %}Edit News Post{% else %}New News Post{% endif %}</div>
+                        <div class="text-xs text-slate-500 mt-1">Sender will be set automatically to: <span class="font-semibold text-slate-900">{{ faculty_user.full_name }}</span></div>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
                     <a href="{{ url_for('faculty_news_list') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all">Back</a>
-                    <a href="{{ url_for('faculty_logout') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all">Logout</a>
                 </div>
             </div>
 
@@ -35,54 +34,57 @@
             </div>
             {% endif %}
 
-            <form method="post" action="{% if post %}{{ url_for('faculty_news_update', post_id=post.id) }}{% else %}{{ url_for('faculty_news_create') }}{% endif %}" enctype="multipart/form-data" class="mt-6 space-y-4">
+            <form method="post" action="{% if post %}{{ url_for('faculty_news_update', post_id=post.id) }}{% else %}{{ url_for('faculty_news_create') }}{% endif %}" enctype="multipart/form-data" class="mt-6 grid grid-cols-1 gap-4">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-600">Priority</label>
-                        <select name="priority" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
-                            {% set pv = (post.priority if post else 'NORMAL') %}
-                            <option value="NORMAL" {% if pv == 'NORMAL' %}selected{% endif %}>NORMAL</option>
-                            <option value="HIGH" {% if pv == 'HIGH' %}selected{% endif %}>HIGH</option>
-                            <option value="LOW" {% if pv == 'LOW' %}selected{% endif %}>LOW</option>
-                        </select>
+                        <label class="block text-xs font-semibold tracking-wide uppercase text-slate-500">Type</label>
+                        <input name="news_type" type="text" value="{{ post.news_type if post else '' }}" placeholder="Update" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10" />
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-600">Type</label>
-                        <input name="news_type" type="text" value="{{ post.news_type if post else 'Update' }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
+                        <label class="block text-xs font-semibold tracking-wide uppercase text-slate-500">Priority</label>
+                        <select name="priority" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10">
+                            {% set pr = (post.priority if post else 'NORMAL')|upper %}
+                            <option value="NORMAL" {% if pr == 'NORMAL' %}selected{% endif %}>NORMAL</option>
+                            <option value="IMPORTANT" {% if pr == 'IMPORTANT' %}selected{% endif %}>IMPORTANT</option>
+                            <option value="URGENT" {% if pr == 'URGENT' %}selected{% endif %}>URGENT</option>
+                        </select>
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600">Heading</label>
-                    <input name="heading" type="text" value="{{ post.heading if post else '' }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" required />
+                    <label class="block text-xs font-semibold tracking-wide uppercase text-slate-500">Heading (optional)</label>
+                    <input name="heading" type="text" value="{{ post.heading if post else '' }}" placeholder="(optional)" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10" />
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600">Body</label>
-                    <textarea name="body" rows="7" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" required>{{ post.body if post else '' }}</textarea>
+                    <label class="block text-xs font-semibold tracking-wide uppercase text-slate-500">Body *</label>
+                    <textarea name="body" rows="8" placeholder="Write your message..." class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10">{{ post.body if post else '' }}</textarea>
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600">Tags (optional)</label>
-                    <input name="tags" type="text" value="{{ post.tags if post else '' }}" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
+                    <label class="block text-xs font-semibold tracking-wide uppercase text-slate-500">Tags (optional)</label>
+                    <input name="tags" type="text" value="{{ post.tags if post else '' }}" placeholder="comma,separated,tags" class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10" />
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600">Attachment (optional)</label>
-                    <input name="attachment" type="file" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
+                    <label class="block text-xs font-semibold tracking-wide uppercase text-slate-500">Attachment (optional)</label>
+                    <input name="attachment" type="file" class="mt-2 block w-full text-sm text-slate-700 file:mr-4 file:rounded-xl file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200" />
                     {% if post and post.attachment_path %}
-                        <div class="mt-2 text-xs text-slate-500">Current: <a href="/{{ post.attachment_path }}" target="_blank" class="text-indigo-700 hover:text-indigo-900 underline">{{ post.attachment_name or 'file' }}</a></div>
+                        <div class="mt-2 text-xs text-slate-500">
+                            Current attachment: <a class="font-semibold text-slate-900 hover:underline" href="{{ url_for('static', filename=post.attachment_path) }}" target="_blank">{{ post.attachment_name or 'View' }}</a>
+                        </div>
                     {% endif %}
                 </div>
 
-                <div class="pt-2 flex justify-end">
-                    <button type="submit" class="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all">{% if post %}Save Changes{% else %}Publish{% endif %}</button>
+                <div class="flex items-center justify-end gap-2 pt-2">
+                    <a href="{{ url_for('faculty_news_list') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all">Cancel</a>
+                    <button type="submit" class="px-5 py-2 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all">{% if post %}Save Changes{% else %}Publish{% endif %}</button>
                 </div>
             </form>
         </div>
 
         <div class="mt-4 text-xs text-slate-500 text-center">
-            <a href="{{ url_for('admin_login') }}" class="hover:text-slate-900">Admin Login</a>
+            <a href="{{ url_for('faculty_dashboard') }}" class="hover:text-slate-900">Faculty Dashboard</a>
         </div>
     </div>
 </body>
