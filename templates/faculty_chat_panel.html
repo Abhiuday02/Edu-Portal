@@ -1,0 +1,12 @@
+{% extends "faculty_base.html" %}
+
+{% block content %}
+<style>
+    :root {
+        --gc-bottom-offset: 1rem;
+        --gc-scroll-pad-bottom: 7.5rem;
+    }
+    [data-bottom-nav] { display: none !important; }
+</style>
+{% include "_group_chat_widget.html" %}
+{% endblock %}

@@ -1,0 +1,557 @@
+{% set can_moderate = (chat_can_moderate or false) %}
+
+<style>
+    :root {
+        --gc-bottom-offset: calc(4.75rem + env(safe-area-inset-bottom));
+        --gc-scroll-pad-bottom: calc(9.25rem + env(safe-area-inset-bottom));
+    }
+
+    [data-gc-message] [data-gc-actions] {
+        opacity: 0;
+        transform: translateY(-2px);
+        pointer-events: none;
+        transition: opacity 120ms ease, transform 120ms ease;
+    }
+    [data-gc-message]:hover [data-gc-actions] {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+    [data-gc-message] [data-gc-action-btn] {
+        width: 32px;
+        height: 28px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgb(226 232 240);
+        color: rgb(71 85 105);
+    }
+    [data-gc-message] [data-gc-action-btn]:hover {
+        background: rgb(241 245 249);
+        color: rgb(15 23 42);
+    }
+</style>
+
+<div>
+    <div class="mt-4 flex-1 overflow-y-auto rounded-2xl bg-transparent p-3 hide-scrollbar flex flex-col" data-gc-scroll style="padding-bottom: var(--gc-scroll-pad-bottom);">
+        <div class="flex-1 flex flex-col justify-end gap-3" data-gc-list>
+            {% for row in chat_items %}
+                {% if row.kind == 'date' %}
+                    <div class="flex items-center justify-center py-2" data-gc-date-sep>
+                        <span class="px-3 py-1 rounded-full bg-white border border-slate-200 text-xs text-slate-600">{{ row.label }}</span>
+                    </div>
+                {% else %}
+                    {% set m = row.msg %}
+                    {% set mine = (chat_actor and m.actor_type == chat_actor.type and (m.actor_id or 0)|int == (chat_actor.id or 0)|int) %}
+                    <div class="w-full flex {% if mine %}justify-end{% else %}justify-start{% endif %}" data-gc-message data-id="{{ m.id }}" data-date="{{ m.date_key }}">
+                        <div class="max-w-[92%] sm:max-w-[75%] flex flex-col">
+                            <div class="rounded-2xl border {% if mine %}border-emerald-200 bg-emerald-50{% else %}border-slate-200 bg-white{% endif %} p-3 sm:p-4 shadow-sm">
+                                <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                                    <button type="button" class="text-left min-w-0" data-gc-profile-btn data-actor-type="{{ m.actor_type }}" data-actor-id="{{ m.actor_id }}">
+                                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                            <span class="text-xs font-semibold text-slate-800 truncate max-w-[14rem] hover:underline">{{ m.actor_name }}</span>
+                                            <span class="text-[11px] text-slate-400">{{ m.time_label }}</span>
+                                            {% if m.edited_at %}
+                                                <span class="text-[11px] text-slate-400">(edited{% if m.edited_label %} {{ m.edited_label }}{% endif %})</span>
+                                            {% endif %}
+                                        </div>
+                                    </button>
+                                </div>
+
+                            {% if m.message %}
+                                <div class="mt-2" data-gc-body>
+                                    <div class="text-sm text-slate-800 whitespace-pre-line break-words" data-gc-message-text>{{ m.message }}</div>
+                                </div>
+                            {% endif %}
+
+                            {% if m.attachment_path %}
+                                {% set att_url = url_for('static', filename=m.attachment_path) %}
+                                {% if m.attachment_is_image %}
+                                    <div class="mt-3 rounded-xl border border-slate-200 bg-white overflow-hidden">
+                                        <img src="{{ att_url }}" alt="{{ m.attachment_name or 'Image' }}" class="w-full max-h-72 object-contain bg-slate-50" />
+                                        <div class="p-2 flex items-center justify-between gap-2">
+                                            <p class="text-xs text-slate-600 truncate">{{ m.attachment_name or 'Image' }}</p>
+                                            <a href="{{ att_url }}" target="_blank" rel="noopener" class="px-2 py-1 rounded-lg minimal-btn minimal-btn-primary text-xs font-medium inline-flex items-center justify-center gap-1">View</a>
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <div class="mt-3 flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3">
+                                        <p class="text-xs text-slate-600 truncate flex items-center gap-2"><span class="iconify" data-icon="solar:paperclip-2-linear"></span> {{ m.attachment_name or 'Attachment' }}</p>
+                                        <div class="flex items-center gap-2 shrink-0">
+                                            <a href="{{ att_url }}" target="_blank" rel="noopener" class="px-3 py-2 rounded-xl minimal-btn minimal-btn-primary text-xs font-medium inline-flex items-center justify-center gap-2"><span class="iconify text-sm" data-icon="solar:eye-bold"></span> Open</a>
+                                            <a href="{{ att_url }}" download class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-medium hover:bg-slate-200 transition-all inline-flex items-center justify-center gap-2"><span class="iconify text-sm text-indigo-600" data-icon="solar:download-outline"></span> Download</a>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endif %}
+                            </div>
+
+                            <div class="mt-1 flex items-center gap-2 {% if mine %}justify-end{% else %}justify-start{% endif %}" data-gc-actions>
+                                {% if mine or can_moderate %}
+                                    <button type="button" data-gc-action-btn data-gc-edit-btn data-id="{{ m.id }}" title="Edit">
+                                        <span class="iconify text-base" data-icon="solar:pen-2-outline"></span>
+                                    </button>
+                                {% endif %}
+                                {% if mine or can_moderate %}
+                                    <button type="button" data-gc-action-btn data-gc-delete-btn data-id="{{ m.id }}" title="Delete">
+                                        <span class="iconify text-base" data-icon="solar:trash-bin-trash-outline"></span>
+                                    </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="sticky z-[70] w-full" style="bottom: var(--gc-bottom-offset);" data-gc-composer>
+        <div class="mx-auto w-full max-w-[720px] rounded-3xl border border-slate-200/60 bg-white/70 backdrop-blur-md shadow-[0_10px_28px_rgba(15,23,42,0.08)] p-3">
+            <form method="post" action="{{ chat_send_url }}" enctype="multipart/form-data" class="space-y-2" data-gc-form>
+                <div class="grid grid-cols-[1fr_auto_auto] gap-2 items-center mb-0">
+                    <input name="message" class="minimal-input w-full" placeholder="Type a message..." data-gc-message>
+
+                    <div>
+                        <input type="file" name="attachment" class="hidden" data-gc-attachment>
+                        <button type="button" class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all inline-flex items-center justify-center" data-gc-attach-btn title="Attach file">
+                            <span class="iconify text-xl" data-icon="solar:paperclip-outline"></span>
+                        </button>
+                    </div>
+
+                    <button type="submit" class="w-10 h-10 rounded-2xl minimal-btn minimal-btn-primary inline-flex items-center justify-center" title="Send">
+                        <span class="iconify text-xl" data-icon="solar:arrow-right-bold"></span>
+                    </button>
+                </div>
+
+                <div class="text-[11px] text-slate-500 hidden" data-gc-attachment-label></div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="fixed inset-0 z-[80] hidden" data-gc-profile-modal>
+    <div class="absolute inset-0 bg-slate-900/40" data-gc-profile-backdrop></div>
+    <div class="absolute bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2">
+        <div class="mx-auto max-w-md rounded-t-3xl sm:rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                    <p class="text-xs text-slate-500">Profile</p>
+                    <p class="text-lg font-semibold text-slate-900" data-gc-profile-name>Loading…</p>
+                </div>
+                <button type="button" class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all" data-gc-profile-close>Close</button>
+            </div>
+            <div class="p-5" data-gc-profile-body>
+                <div class="text-sm text-slate-600">Loading…</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="application/json" id="groupChatInit">{{ {
+    'my_actor': chat_actor,
+    'poll_url': chat_poll_url,
+    'profile_url_template': chat_profile_url_template,
+    'delete_url_template': chat_delete_url_template,
+    'edit_url_template': chat_edit_url_template,
+    'can_moderate': can_moderate
+} | tojson }}</script>
+
+<script>
+    (function () {
+        const scrollEl = document.querySelector('[data-gc-scroll]');
+        const listEl = document.querySelector('[data-gc-list]');
+        const formEl = document.querySelector('[data-gc-form]');
+        const attachBtn = document.querySelector('[data-gc-attach-btn]');
+        const attachInput = document.querySelector('[data-gc-attachment]');
+        const attachLabel = document.querySelector('[data-gc-attachment-label]');
+        const initEl = document.getElementById('groupChatInit');
+
+        const modal = document.querySelector('[data-gc-profile-modal]');
+        const modalBackdrop = document.querySelector('[data-gc-profile-backdrop]');
+        const modalClose = document.querySelector('[data-gc-profile-close]');
+        const modalName = document.querySelector('[data-gc-profile-name]');
+        const modalBody = document.querySelector('[data-gc-profile-body]');
+
+        if (!scrollEl || !listEl || !initEl) return;
+
+        let init = null;
+        try {
+            init = JSON.parse(initEl.textContent || '{}');
+        } catch (e) {
+            init = null;
+        }
+        if (!init) return;
+
+        const pollUrl = init.poll_url;
+        const profileUrlTemplate = init.profile_url_template;
+        const deleteUrlTemplate = init.delete_url_template;
+        const editUrlTemplate = init.edit_url_template;
+        const myActor = init.my_actor;
+        const canModerate = !!init.can_moderate;
+
+        function scrollToBottom() {
+            scrollEl.scrollTop = scrollEl.scrollHeight;
+        }
+        setTimeout(scrollToBottom, 0);
+
+        if (attachBtn && attachInput) {
+            attachBtn.addEventListener('click', () => attachInput.click());
+            attachInput.addEventListener('change', () => {
+                if (!attachLabel) return;
+                const f = attachInput.files && attachInput.files[0];
+                if (!f) {
+                    attachLabel.classList.add('hidden');
+                    attachLabel.textContent = '';
+                    return;
+                }
+                attachLabel.classList.remove('hidden');
+                attachLabel.textContent = `Attachment: ${f.name}`;
+            });
+        }
+
+        function escapeHtml(s) {
+            return (s || '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        function openProfileModal() {
+            if (!modal) return;
+            modal.classList.remove('hidden');
+        }
+
+        function closeProfileModal() {
+            if (!modal) return;
+            modal.classList.add('hidden');
+        }
+
+        if (modalBackdrop) modalBackdrop.addEventListener('click', closeProfileModal);
+        if (modalClose) modalClose.addEventListener('click', closeProfileModal);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeProfileModal();
+        });
+
+        async function showProfile(actorType, actorId) {
+            if (!modalName || !modalBody) return;
+            modalName.textContent = 'Loading…';
+            modalBody.innerHTML = '<div class="text-sm text-slate-600">Loading…</div>';
+            openProfileModal();
+
+            try {
+                const url = String(profileUrlTemplate)
+                    .replace('__TYPE__', encodeURIComponent(actorType))
+                    .replace('__ID__', encodeURIComponent(String(actorId)));
+                const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                const data = await res.json();
+                if (!data || !data.ok) {
+                    modalName.textContent = 'Profile';
+                    modalBody.innerHTML = `<div class="text-sm text-rose-700">${escapeHtml(data && data.error ? data.error : 'Unable to load profile')}</div>`;
+                    return;
+                }
+                modalName.textContent = data.name || 'Profile';
+                const lines = (data.lines || []).map((l) => `<div class="text-sm text-slate-700">${escapeHtml(l)}</div>`).join('');
+                modalBody.innerHTML = lines || '<div class="text-sm text-slate-600">No details available.</div>';
+            } catch (e) {
+                modalName.textContent = 'Profile';
+                modalBody.innerHTML = '<div class="text-sm text-rose-700">Unable to load profile.</div>';
+            }
+        }
+
+        document.querySelectorAll('[data-gc-profile-btn]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const t = btn.getAttribute('data-actor-type');
+                const id = btn.getAttribute('data-actor-id');
+                if (!t || !id) return;
+                showProfile(t, id);
+            });
+        });
+
+        async function deleteMessage(messageId) {
+            const ok = window.confirm('Delete this message?');
+            if (!ok) return;
+
+            try {
+                const url = String(deleteUrlTemplate).replace('__ID__', encodeURIComponent(String(messageId)));
+                const res = await fetch(url, { method: 'POST', headers: { 'Accept': 'application/json' } });
+                const data = await res.json();
+                if (!data || !data.ok) {
+                    window.alert((data && data.error) ? data.error : 'Failed to delete message');
+                    return;
+                }
+                const node = listEl.querySelector(`[data-gc-message][data-id="${CSS.escape(String(messageId))}"]`);
+                if (node) node.remove();
+            } catch (e) {
+                window.alert('Failed to delete message');
+            }
+        }
+
+        document.querySelectorAll('[data-gc-delete-btn]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const id = btn.getAttribute('data-id');
+                if (!id) return;
+                deleteMessage(id);
+            });
+        });
+
+        async function editMessage(messageId, newText) {
+            try {
+                const url = String(editUrlTemplate).replace('__ID__', encodeURIComponent(String(messageId)));
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message: newText })
+                });
+                const data = await res.json();
+                if (!data || !data.ok) {
+                    window.alert((data && data.error) ? data.error : 'Failed to edit message');
+                    return null;
+                }
+                return data;
+            } catch (e) {
+                window.alert('Failed to edit message');
+                return null;
+            }
+        }
+
+        function ensureEditedBadge(headerEl, editedLabel) {
+            if (!headerEl) return;
+            const existing = headerEl.querySelector('[data-gc-edited-badge]');
+            if (existing) {
+                existing.textContent = editedLabel ? `(edited ${editedLabel})` : '(edited)';
+                return;
+            }
+            const badge = document.createElement('span');
+            badge.setAttribute('data-gc-edited-badge', '');
+            badge.className = 'text-[11px] text-slate-400';
+            badge.textContent = editedLabel ? `(edited ${editedLabel})` : '(edited)';
+            headerEl.appendChild(badge);
+        }
+
+        function attachInlineEditHandlers(messageRoot) {
+            const editBtn = messageRoot.querySelector('[data-gc-edit-btn]');
+            if (!editBtn) return;
+
+            editBtn.addEventListener('click', async () => {
+                const id = editBtn.getAttribute('data-id');
+                if (!id) return;
+
+                const body = messageRoot.querySelector('[data-gc-body]');
+                if (!body) return;
+                if (body.querySelector('[data-gc-edit-area]')) return;
+
+                const textNode = body.querySelector('[data-gc-message-text]');
+                const currentText = (textNode ? (textNode.textContent || '') : '').trim();
+
+                const editor = document.createElement('div');
+                editor.setAttribute('data-gc-edit-area', '');
+                editor.className = 'space-y-2';
+                editor.innerHTML = `
+                    <textarea class="minimal-input w-full" rows="3" data-gc-edit-input></textarea>
+                    <div class="flex items-center justify-end gap-2">
+                        <button type="button" class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-medium hover:bg-slate-200 transition-all" data-gc-edit-cancel>Cancel</button>
+                        <button type="button" class="px-3 py-2 rounded-xl minimal-btn minimal-btn-primary text-xs font-medium" data-gc-edit-save>Save</button>
+                    </div>
+                `;
+
+                const input = editor.querySelector('[data-gc-edit-input]');
+                const cancelBtn = editor.querySelector('[data-gc-edit-cancel]');
+                const saveBtn = editor.querySelector('[data-gc-edit-save]');
+                if (input) input.value = currentText;
+
+                if (textNode) textNode.classList.add('hidden');
+                body.appendChild(editor);
+                if (input) input.focus();
+
+                if (cancelBtn) {
+                    cancelBtn.addEventListener('click', () => {
+                        editor.remove();
+                        if (textNode) textNode.classList.remove('hidden');
+                    });
+                }
+
+                if (saveBtn) {
+                    saveBtn.addEventListener('click', async () => {
+                        const newText = (input ? input.value : '').trim();
+                        if (!newText) {
+                            window.alert('Message cannot be empty');
+                            return;
+                        }
+                        const res = await editMessage(id, newText);
+                        if (!res) return;
+
+                        if (textNode) {
+                            textNode.textContent = res.message || newText;
+                            textNode.classList.remove('hidden');
+                        }
+                        editor.remove();
+
+                        const header = messageRoot.querySelector('[data-gc-profile-btn] .flex');
+                        ensureEditedBadge(header, res.edited_label || '');
+                    });
+                }
+            });
+        }
+
+        document.querySelectorAll('[data-gc-message]').forEach((node) => {
+            attachInlineEditHandlers(node);
+        });
+
+        function renderDateSeparator(label) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex items-center justify-center py-2';
+            wrapper.setAttribute('data-gc-date-sep', '');
+            wrapper.innerHTML = `<span class="px-3 py-1 rounded-full bg-white border border-slate-200 text-xs text-slate-600">${escapeHtml(label)}</span>`;
+            return wrapper;
+        }
+
+        function renderAttachment(m) {
+            if (!m.attachment_url) return '';
+            if (m.attachment_is_image) {
+                return `
+                    <div class="mt-3 rounded-xl border border-slate-200 bg-white overflow-hidden">
+                        <img src="${escapeHtml(m.attachment_url)}" alt="${escapeHtml(m.attachment_name || 'Image')}" class="w-full max-h-72 object-contain bg-slate-50" />
+                        <div class="p-2 flex items-center justify-between gap-2">
+                            <p class="text-xs text-slate-600 truncate">${escapeHtml(m.attachment_name || 'Image')}</p>
+                            <a href="${escapeHtml(m.attachment_url)}" target="_blank" rel="noopener" class="px-2 py-1 rounded-lg minimal-btn minimal-btn-primary text-xs font-medium inline-flex items-center justify-center gap-1">View</a>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="mt-3 flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3">
+                    <p class="text-xs text-slate-600 truncate flex items-center gap-2"><span class="iconify" data-icon="solar:paperclip-2-linear"></span> ${escapeHtml(m.attachment_name || 'Attachment')}</p>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <a href="${escapeHtml(m.attachment_url)}" target="_blank" rel="noopener" class="px-3 py-2 rounded-xl minimal-btn minimal-btn-primary text-xs font-medium inline-flex items-center justify-center gap-2"><span class="iconify text-sm" data-icon="solar:eye-bold"></span> Open</a>
+                        <a href="${escapeHtml(m.attachment_url)}" download class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-medium hover:bg-slate-200 transition-all inline-flex items-center justify-center gap-2"><span class="iconify text-sm text-indigo-600" data-icon="solar:download-outline"></span> Download</a>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderMessage(m) {
+            const mine = myActor && m.actor_type === myActor.type && Number(m.actor_id || 0) === Number(myActor.id || 0);
+            const wrapper = document.createElement('div');
+            wrapper.className = `w-full flex ${mine ? 'justify-end' : 'justify-start'}`;
+            wrapper.setAttribute('data-gc-message', '');
+            wrapper.setAttribute('data-id', String(m.id));
+            wrapper.setAttribute('data-date', String(m.date_key || ''));
+
+            const editBtn = (mine || canModerate)
+                ? `<button type="button" data-gc-action-btn data-gc-edit-btn data-id="${escapeHtml(String(m.id))}" title="Edit"><span class="iconify text-base" data-icon="solar:pen-2-outline"></span></button>`
+                : '';
+            const deleteBtn = (mine || canModerate)
+                ? `<button type="button" data-gc-action-btn data-gc-delete-btn data-id="${escapeHtml(String(m.id))}" title="Delete"><span class="iconify text-base" data-icon="solar:trash-bin-trash-outline"></span></button>`
+                : '';
+
+            wrapper.innerHTML = `
+                <div class="max-w-[92%] sm:max-w-[75%] flex flex-col">
+                    <div class="rounded-2xl border ${mine ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'} p-3 sm:p-4 shadow-sm">
+                        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                            <button type="button" class="text-left min-w-0" data-gc-profile-btn data-actor-type="${escapeHtml(m.actor_type)}" data-actor-id="${escapeHtml(String(m.actor_id))}">
+                                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    <span class="text-xs font-semibold text-slate-800 truncate max-w-[14rem] hover:underline">${escapeHtml(m.actor_name || '')}</span>
+                                    <span class="text-[11px] text-slate-400">${escapeHtml(m.time_label || '')}</span>
+                                    ${m.edited_at ? `<span class="text-[11px] text-slate-400" data-gc-edited-badge>(edited${m.edited_label ? ` ${escapeHtml(m.edited_label)}` : ''})</span>` : ''}
+                                </div>
+                            </button>
+                        </div>
+                        ${m.message ? `<div class="mt-2" data-gc-body><div class="text-sm text-slate-800 whitespace-pre-line break-words" data-gc-message-text>${escapeHtml(m.message)}</div></div>` : ''}
+                        ${renderAttachment(m)}
+                    </div>
+                    <div class="mt-1 flex items-center gap-2 ${mine ? 'justify-end' : 'justify-start'}" data-gc-actions>
+                        ${editBtn}
+                        ${deleteBtn}
+                    </div>
+                </div>
+            `;
+
+            const profileBtn = wrapper.querySelector('[data-gc-profile-btn]');
+            if (profileBtn) {
+                profileBtn.addEventListener('click', () => {
+                    const t = profileBtn.getAttribute('data-actor-type');
+                    const id = profileBtn.getAttribute('data-actor-id');
+                    if (!t || !id) return;
+                    showProfile(t, id);
+                });
+            }
+
+            const delBtn = wrapper.querySelector('[data-gc-delete-btn]');
+            if (delBtn) {
+                delBtn.addEventListener('click', () => {
+                    const id = delBtn.getAttribute('data-id');
+                    if (!id) return;
+                    deleteMessage(id);
+                });
+            }
+
+            attachInlineEditHandlers(wrapper);
+
+            return wrapper;
+        }
+
+        function getLastMessageId() {
+            const nodes = listEl.querySelectorAll('[data-gc-message][data-id]');
+            let last = 0;
+            nodes.forEach((n) => {
+                const id = Number(n.getAttribute('data-id') || 0);
+                if (id > last) last = id;
+            });
+            return last;
+        }
+
+        function maybeInsertDateSeparator(dateKey, dateLabel) {
+            const last = listEl.lastElementChild;
+            const lastMsg = last && last.matches && last.matches('[data-gc-message]') ? last : null;
+            const lastDate = lastMsg ? lastMsg.getAttribute('data-date') : null;
+            if (!lastDate || String(lastDate) !== String(dateKey)) {
+                listEl.appendChild(renderDateSeparator(dateLabel || dateKey || ''));
+            }
+        }
+
+        async function poll() {
+            try {
+                const afterId = getLastMessageId();
+                const url = `${pollUrl}?after_id=${encodeURIComponent(String(afterId))}&limit=50`;
+                const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                const data = await res.json();
+                if (!data || !data.ok) return;
+
+                const items = data.items || [];
+                if (!items.length) return;
+
+                items.forEach((it) => {
+                    if (it.kind === 'date') {
+                        listEl.appendChild(renderDateSeparator(it.label || it.date_key || ''));
+                        return;
+                    }
+                    const m = it.msg;
+                    if (!m) return;
+                    maybeInsertDateSeparator(m.date_key, m.date_label);
+                    listEl.appendChild(renderMessage(m));
+                });
+
+                scrollToBottom();
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        setInterval(poll, 4000);
+
+        if (formEl) {
+            formEl.addEventListener('submit', () => {
+                // Let server handle; polling will pick it up.
+                // If you later want full AJAX send, we can do it.
+            });
+        }
+    })();
+</script>

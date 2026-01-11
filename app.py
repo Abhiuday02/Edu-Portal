@@ -1,5 +1,5 @@
 from flask import Flask, g, render_template, request, redirect, url_for, render_template_string, session, abort, send_file, jsonify
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import os
 import shutil
@@ -19,6 +19,7 @@ app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
 DB_PATH = Path(__file__).with_name("eduportal.db")
 
 NEWS_UPLOAD_DIR = Path(__file__).with_name("static") / "uploads" / "news"
+CHAT_UPLOAD_DIR = Path(__file__).with_name("static") / "uploads" / "chat"
 VAULT_UPLOAD_DIR = Path(__file__).with_name("uploads") / "vault"
 FACULTY_VAULT_UPLOAD_DIR = Path(__file__).with_name("uploads") / "faculty_vault"
 
@@ -41,6 +42,127 @@ def save_news_attachment(upload) -> tuple[str, str, str] | None:
     rel_path = f"uploads/news/{unique}"
     mime = (getattr(upload, "mimetype", None) or "").strip()
     return (rel_path, original, mime)
+
+
+def save_chat_attachment(upload) -> tuple[str, str, str] | None:
+    if upload is None:
+        return None
+    original = (upload.filename or "").strip()
+    if not original:
+        return None
+    CHAT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+    safe = secure_filename(original)
+    if not safe:
+        return None
+    unique = f"{uuid.uuid4().hex}_{safe}"
+    abs_path = CHAT_UPLOAD_DIR / unique
+    upload.save(abs_path)
+
+    rel_path = f"uploads/chat/{unique}"
+    mime = (getattr(upload, "mimetype", None) or "").strip()
+    return (rel_path, original, mime)
+
+
+def ensure_group_chat_schema(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS group_chat_messages (
+            id INTEGER PRIMARY KEY,
+            created_at TEXT NOT NULL,
+            actor_type TEXT NOT NULL,
+            actor_id INTEGER NOT NULL,
+            actor_name TEXT NOT NULL,
+            message TEXT,
+            attachment_path TEXT,
+            attachment_name TEXT,
+            attachment_mime TEXT,
+            is_deleted INTEGER NOT NULL DEFAULT 0,
+            edited_at TEXT,
+            edited_by_type TEXT,
+            edited_by_id INTEGER
+        )
+        """
+    )
+
+    cols = {row[1] for row in db.execute("PRAGMA table_info(group_chat_messages)").fetchall()}
+    if "edited_at" not in cols:
+        db.execute("ALTER TABLE group_chat_messages ADD COLUMN edited_at TEXT")
+    if "edited_by_type" not in cols:
+        db.execute("ALTER TABLE group_chat_messages ADD COLUMN edited_by_type TEXT")
+    if "edited_by_id" not in cols:
+        db.execute("ALTER TABLE group_chat_messages ADD COLUMN edited_by_id INTEGER")
+
+
+def fmt_chat_time(value: str) -> str:
+    if not value:
+        return ""
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", ""))
+    except Exception:
+        return ""
+    return dt.strftime("%I:%M %p")
+
+
+def _chat_date_key(value: str) -> str:
+    if not value:
+        return ""
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", ""))
+    except Exception:
+        return ""
+    return dt.date().isoformat()
+
+
+def _chat_date_label(date_key: str) -> str:
+    if not date_key:
+        return ""
+    try:
+        d = datetime.fromisoformat(date_key).date()
+    except Exception:
+        return date_key
+    today = datetime.now().date()
+    if d == today:
+        return "Today"
+    if d == (today - timedelta(days=1)):
+        return "Yesterday"
+    return d.strftime("%d %b %Y")
+
+
+def build_group_chat_items(rows: list[sqlite3.Row], last_date: str | None = None) -> list[dict]:
+    items: list[dict] = []
+    for r in rows:
+        created_at = str(r["created_at"] or "")
+        dk = _chat_date_key(created_at)
+        if dk and dk != last_date:
+            items.append({"kind": "date", "date_key": dk, "label": _chat_date_label(dk)})
+            last_date = dk
+        mime = (r["attachment_mime"] or "") if ("attachment_mime" in r.keys()) else ""
+        is_img = bool(mime and str(mime).startswith("image/"))
+        items.append(
+            {
+                "kind": "msg",
+                "msg": {
+                    "id": int(r["id"]),
+                    "created_at": created_at,
+                    "edited_at": str(r["edited_at"] or "") if ("edited_at" in r.keys()) else "",
+                    "date_key": dk,
+                    "date_label": _chat_date_label(dk),
+                    "time_label": fmt_chat_time(created_at),
+                    "edited_label": fmt_chat_time(str(r["edited_at"] or "")) if ("edited_at" in r.keys() and r["edited_at"]) else "",
+                    "actor_type": str(r["actor_type"] or ""),
+                    "actor_id": int(r["actor_id"] or 0),
+                    "actor_name": str(r["actor_name"] or ""),
+                    "message": str(r["message"] or ""),
+                    "attachment_path": r["attachment_path"],
+                    "attachment_name": r["attachment_name"],
+                    "attachment_mime": r["attachment_mime"],
+                    "attachment_is_image": is_img,
+                },
+            }
+        )
+    return items
+
 
 
 def ensure_news_posts_rich_schema(db: sqlite3.Connection) -> None:
@@ -400,6 +522,441 @@ def admin_role_required(*allowed_roles: str):
         return wrapper
 
     return decorator
+
+
+def get_chat_actor(db: sqlite3.Connection) -> dict | None:
+    # Important: a single browser session can accidentally hold multiple role IDs (e.g., using
+    # admin + faculty panels in different tabs). For chat sends, prefer the role based on where
+    # the request came from (referrer), then fall back to a safe default ordering.
+    ref = (request.referrer or "").lower()
+
+    def _admin_actor() -> dict | None:
+        aid = get_current_admin_id()
+        if aid is None:
+            return None
+        admin_user = db.execute("SELECT * FROM admin_users WHERE id = ?", (int(aid),)).fetchone()
+        if not admin_user:
+            return None
+        return {"type": "admin", "id": int(aid), "name": str(admin_user["full_name"] or "Admin")}
+
+    def _faculty_actor() -> dict | None:
+        fid = get_current_faculty_id()
+        if fid is None:
+            return None
+        ensure_faculty_users_schema(db)
+        faculty_user = db.execute("SELECT * FROM faculty_users WHERE id = ?", (int(fid),)).fetchone()
+        if not faculty_user:
+            return None
+        return {"type": "faculty", "id": int(fid), "name": str(faculty_user["full_name"] or "Faculty")}
+
+    def _student_actor() -> dict | None:
+        sid = get_current_student_id()
+        if sid is None:
+            return None
+        student = db.execute("SELECT * FROM students WHERE id = ?", (int(sid),)).fetchone()
+        if not student:
+            return None
+        return {"type": "student", "id": int(sid), "name": str(student["name"] or "Student")}
+
+    if "/faculty" in ref:
+        return _faculty_actor() or _admin_actor() or _student_actor()
+    if "/admin" in ref:
+        return _admin_actor() or _faculty_actor() or _student_actor()
+
+    # Default: admin > faculty > student
+    return _admin_actor() or _faculty_actor() or _student_actor()
+
+    return None
+
+
+def _chat_can_moderate(db: sqlite3.Connection) -> bool:
+    aid = get_current_admin_id()
+    if aid is None:
+        return False
+    admin_user = db.execute("SELECT * FROM admin_users WHERE id = ?", (int(aid),)).fetchone()
+    if not admin_user:
+        return False
+    role = (admin_user["role"] or "").strip().lower()
+    return role in {"admin", "superadmin", "moderator", "staff"} or bool(role)
+
+
+def _chat_base_context(db: sqlite3.Connection) -> dict:
+    actor = get_chat_actor(db)
+    return {
+        "chat_actor": actor,
+        "chat_items": [],
+        "chat_send_url": url_for("chat_send"),
+        "chat_poll_url": url_for("chat_poll"),
+        "chat_profile_url_template": "/chat/profile/__TYPE__/__ID__",
+        "chat_delete_url_template": "/chat/messages/__ID__/delete",
+        "chat_edit_url_template": "/chat/messages/__ID__/edit",
+        "chat_can_moderate": _chat_can_moderate(db),
+    }
+
+
+def _require_chat_actor(db: sqlite3.Connection) -> dict | None:
+    actor = get_chat_actor(db)
+    if not actor:
+        return None
+    return actor
+
+
+@app.get("/chat")
+@login_required
+def chat_panel():
+    db = get_db()
+    ensure_group_chat_schema(db)
+
+    actor = _require_chat_actor(db)
+    if not actor:
+        return redirect(url_for("login"))
+
+    limit = 60
+    rows = db.execute(
+        """
+        SELECT * FROM group_chat_messages
+        WHERE is_deleted = 0
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (int(limit),),
+    ).fetchall()
+    rows = list(reversed(rows))
+    items = build_group_chat_items(rows)
+
+    ctx = _chat_base_context(db)
+    ctx.update(
+        {
+            "page_title": "Chat",
+            "page_subtitle": "Group Chat",
+            "active_page": "chat",
+            "student": db.execute("SELECT * FROM students WHERE id = ?", (int(actor["id"]),)).fetchone(),
+            "chat_items": items,
+            "chat_actor": actor,
+            "chat_can_moderate": False,
+        }
+    )
+    return render_template("chat_panel.html", **ctx)
+
+
+@app.get("/faculty/chat")
+@faculty_approved_required
+def faculty_chat_panel():
+    db = get_db()
+    ensure_group_chat_schema(db)
+
+    fid = get_current_faculty_id()
+    faculty_user = db.execute("SELECT * FROM faculty_users WHERE id = ?", (int(fid),)).fetchone()
+    if not faculty_user:
+        session.pop("faculty_user_id", None)
+        return redirect(url_for("faculty_login"))
+
+    actor = {"type": "faculty", "id": int(fid), "name": str(faculty_user["full_name"] or "Faculty")}
+
+    limit = 60
+    rows = db.execute(
+        """
+        SELECT * FROM group_chat_messages
+        WHERE is_deleted = 0
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (int(limit),),
+    ).fetchall()
+    rows = list(reversed(rows))
+    items = build_group_chat_items(rows)
+
+    ctx = _chat_base_context(db)
+    ctx.update(
+        {
+            "page_title": "Chat",
+            "page_subtitle": "Group Chat",
+            "active_page": "faculty_chat",
+            "faculty_user": faculty_user,
+            "chat_items": items,
+            "chat_actor": actor,
+            "chat_can_moderate": False,
+        }
+    )
+    return render_template("faculty_chat_panel.html", **ctx)
+
+
+@app.get("/admin/chat")
+@admin_login_required
+def admin_chat_panel():
+    db = get_db()
+    ensure_group_chat_schema(db)
+    aid = get_current_admin_id()
+    admin_user = db.execute("SELECT * FROM admin_users WHERE id = ?", (int(aid),)).fetchone()
+    if not admin_user:
+        session.pop("admin_user_id", None)
+        return redirect(url_for("admin_login"))
+
+    actor = {"type": "admin", "id": int(aid), "name": str(admin_user["full_name"] or "Admin")}
+
+    limit = 80
+    rows = db.execute(
+        """
+        SELECT * FROM group_chat_messages
+        WHERE is_deleted = 0
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (int(limit),),
+    ).fetchall()
+    rows = list(reversed(rows))
+    items = build_group_chat_items(rows)
+
+    ctx = _chat_base_context(db)
+    ctx.update(
+        {
+            "page_title": "Chat",
+            "page_subtitle": "Group Chat",
+            "active_page": "admin_chat",
+            "admin_user": admin_user,
+            "chat_items": items,
+            "chat_actor": actor,
+            "chat_can_moderate": True,
+        }
+    )
+    return render_template("admin_chat_panel.html", **ctx)
+
+
+@app.post("/chat/send")
+def chat_send():
+    db = get_db()
+    ensure_group_chat_schema(db)
+
+    actor = _require_chat_actor(db)
+    if not actor:
+        return redirect(url_for("login"))
+
+    message = (request.form.get("message") or "").strip()
+    att = save_chat_attachment(request.files.get("attachment"))
+    attachment_path = att[0] if att else None
+    attachment_name = att[1] if att else None
+    attachment_mime = att[2] if att else None
+
+    if not message and not attachment_path:
+        return redirect(request.referrer or url_for("chat_panel"))
+
+    now = datetime.now().isoformat(timespec="seconds")
+    db.execute(
+        """
+        INSERT INTO group_chat_messages (
+            created_at, actor_type, actor_id, actor_name, message,
+            attachment_path, attachment_name, attachment_mime, is_deleted
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+        """,
+        (
+            now,
+            str(actor["type"]),
+            int(actor["id"]),
+            str(actor["name"]),
+            message or None,
+            attachment_path,
+            attachment_name,
+            attachment_mime,
+        ),
+    )
+    db.commit()
+    return redirect(request.referrer or url_for("chat_panel"))
+
+
+@app.get("/chat/poll")
+def chat_poll():
+    db = get_db()
+    ensure_group_chat_schema(db)
+    actor = _require_chat_actor(db)
+    if not actor:
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+
+    after_id_raw = (request.args.get("after_id") or "").strip()
+    try:
+        after_id = int(after_id_raw)
+    except Exception:
+        after_id = 0
+
+    limit = 50
+    try:
+        limit = int((request.args.get("limit") or "").strip() or 50)
+    except Exception:
+        limit = 50
+    limit = max(1, min(limit, 200))
+
+    last_date = None
+    if after_id:
+        prev = db.execute(
+            """
+            SELECT created_at FROM group_chat_messages
+            WHERE is_deleted = 0 AND id <= ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (int(after_id),),
+        ).fetchone()
+        if prev:
+            last_date = _chat_date_key(str(prev["created_at"] or ""))
+
+    rows = db.execute(
+        """
+        SELECT * FROM group_chat_messages
+        WHERE is_deleted = 0 AND id > ?
+        ORDER BY id ASC
+        LIMIT ?
+        """,
+        (int(after_id), int(limit)),
+    ).fetchall()
+
+    items = build_group_chat_items(list(rows), last_date=last_date)
+    for it in items:
+        if it.get("kind") != "msg":
+            continue
+        m = it.get("msg")
+        if not m:
+            continue
+        ap = m.get("attachment_path")
+        m["attachment_url"] = url_for("static", filename=ap) if ap else None
+
+    return jsonify({"ok": True, "items": items})
+
+
+@app.post("/chat/messages/<int:message_id>/edit")
+def chat_edit_message(message_id: int):
+    db = get_db()
+    ensure_group_chat_schema(db)
+    actor = _require_chat_actor(db)
+    if not actor:
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+
+    body = request.get_json(silent=True) or {}
+    message = str(body.get("message") or "").strip()
+    if not message:
+        return jsonify({"ok": False, "error": "Message cannot be empty"}), 400
+
+    row = db.execute(
+        "SELECT * FROM group_chat_messages WHERE id = ? AND is_deleted = 0",
+        (int(message_id),),
+    ).fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "Message not found"}), 404
+
+    mine = (
+        str(row["actor_type"] or "") == str(actor["type"]) and int(row["actor_id"] or 0) == int(actor["id"]) 
+    )
+    if not mine and not _chat_can_moderate(db):
+        return jsonify({"ok": False, "error": "Not allowed"}), 403
+
+    now = datetime.now().isoformat(timespec="seconds")
+    db.execute(
+        """
+        UPDATE group_chat_messages
+        SET message = ?, edited_at = ?, edited_by_type = ?, edited_by_id = ?
+        WHERE id = ?
+        """,
+        (message, now, str(actor["type"]), int(actor["id"]), int(message_id)),
+    )
+    db.commit()
+    return jsonify({
+        "ok": True,
+        "message": message,
+        "edited_at": now,
+        "edited_label": fmt_chat_time(now),
+    })
+
+
+@app.post("/chat/messages/<int:message_id>/delete")
+def chat_delete_message(message_id: int):
+    db = get_db()
+    ensure_group_chat_schema(db)
+    actor = _require_chat_actor(db)
+    if not actor:
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+
+    row = db.execute(
+        "SELECT * FROM group_chat_messages WHERE id = ? AND is_deleted = 0",
+        (int(message_id),),
+    ).fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "Message not found"}), 404
+
+    mine = (
+        str(row["actor_type"] or "") == str(actor["type"]) and int(row["actor_id"] or 0) == int(actor["id"])
+    )
+    if not mine and not _chat_can_moderate(db):
+        return jsonify({"ok": False, "error": "Not allowed"}), 403
+
+    db.execute("UPDATE group_chat_messages SET is_deleted = 1 WHERE id = ?", (int(message_id),))
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.get("/chat/profile/<actor_type>/<int:actor_id>")
+def chat_profile(actor_type: str, actor_id: int):
+    db = get_db()
+    actor = _require_chat_actor(db)
+    if not actor:
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+
+    t = (actor_type or "").strip().lower()
+    if t not in {"student", "faculty", "admin"}:
+        return jsonify({"ok": False, "error": "Invalid user type"}), 400
+
+    if t == "student":
+        row = db.execute("SELECT * FROM students WHERE id = ?", (int(actor_id),)).fetchone()
+        if not row:
+            return jsonify({"ok": False, "error": "User not found"}), 404
+        lines = []
+        if "roll_no" in row.keys():
+            lines.append(f"Roll No: {row['roll_no']}")
+        if "email" in row.keys() and row["email"]:
+            lines.append(f"Email: {row['email']}")
+        if "program" in row.keys() and row["program"]:
+            lines.append(f"Program: {row['program']}")
+        if "sem" in row.keys() and row["sem"] is not None:
+            lines.append(f"Semester: {row['sem']}")
+        return jsonify({"ok": True, "name": str(row["name"] or "Student"), "lines": lines})
+
+    if t == "faculty":
+        ensure_faculty_users_schema(db)
+        row = db.execute("SELECT * FROM faculty_users WHERE id = ?", (int(actor_id),)).fetchone()
+        if not row:
+            return jsonify({"ok": False, "error": "User not found"}), 404
+        lines = []
+        if row["designation"]:
+            lines.append(f"Designation: {row['designation']}")
+        if row["department"]:
+            lines.append(f"Department: {row['department']}")
+        if row["email"]:
+            lines.append(f"Email: {row['email']}")
+        return jsonify({"ok": True, "name": str(row["full_name"] or "Faculty"), "lines": lines})
+
+    row = db.execute("SELECT * FROM admin_users WHERE id = ?", (int(actor_id),)).fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "User not found"}), 404
+    lines = []
+    if row["username"]:
+        lines.append(f"Username: {row['username']}")
+    if row["role"]:
+        lines.append(f"Role: {row['role']}")
+    return jsonify({"ok": True, "name": str(row["full_name"] or "Admin"), "lines": lines})
+
+
+@app.post("/admin/chat/messages/<int:message_id>/delete")
+@admin_login_required
+def admin_chat_delete(message_id: int):
+    db = get_db()
+    ensure_group_chat_schema(db)
+    if not _chat_can_moderate(db):
+        return jsonify({"ok": False, "error": "Not allowed"}), 403
+
+    row = db.execute("SELECT * FROM group_chat_messages WHERE id = ?", (int(message_id),)).fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "Message not found"}), 404
+
+    db.execute("UPDATE group_chat_messages SET is_deleted = 1 WHERE id = ?", (int(message_id),))
+    db.commit()
+    return jsonify({"ok": True})
 
 
 def ensure_students_password_column(db: sqlite3.Connection) -> None:
@@ -989,6 +1546,8 @@ def init_db() -> None:
             );
             """
         )
+
+        ensure_group_chat_schema(db)
 
         ensure_news_posts_rich_schema(db)
         ensure_news_posts_faculty_author_schema(db)
@@ -1869,6 +2428,8 @@ def login_post():
     if not student["password_hash"] or not check_password_hash(student["password_hash"], password):
         return render_template("login.html", error="Invalid roll number or password.")
 
+    session.pop("admin_user_id", None)
+    session.pop("faculty_user_id", None)
     session["student_id"] = int(student["id"])
     return redirect(url_for("dashboard"))
 
@@ -1876,6 +2437,8 @@ def login_post():
 @app.get("/logout")
 def logout():
     session.pop("student_id", None)
+    session.pop("faculty_user_id", None)
+    session.pop("admin_user_id", None)
     return redirect(url_for("login"))
 
 
@@ -1903,12 +2466,16 @@ def admin_login_post():
     ):
         return render_template("admin_login.html", error="Invalid username or password.")
 
+    session.pop("student_id", None)
+    session.pop("faculty_user_id", None)
     session["admin_user_id"] = int(admin_user["id"])
     return redirect(url_for("admin_dashboard"))
 
 
 @app.get("/admin/logout")
 def admin_logout():
+    session.pop("student_id", None)
+    session.pop("faculty_user_id", None)
     session.pop("admin_user_id", None)
     return redirect(url_for("admin_login"))
 
@@ -1921,7 +2488,7 @@ def faculty_register():
 
 
 @app.post("/faculty/register")
-def faculty_register_post():
+def faculty_register_submit():
     full_name = (request.form.get("full_name") or "").strip()
     department = (request.form.get("department") or "").strip()
     faculty_type = (request.form.get("faculty_type") or "").strip()
@@ -1975,6 +2542,8 @@ def faculty_register_post():
     )
     fid = int(db.execute("SELECT last_insert_rowid()").fetchone()[0])
     db.commit()
+    session.pop("student_id", None)
+    session.pop("admin_user_id", None)
     session["faculty_user_id"] = fid
     return redirect(url_for("faculty_status"))
 
@@ -2004,6 +2573,8 @@ def faculty_login_post():
     ):
         return render_template("faculty_login.html", error="Invalid email or password.")
 
+    session.pop("student_id", None)
+    session.pop("admin_user_id", None)
     session["faculty_user_id"] = int(faculty_user["id"])
     return redirect(url_for(get_faculty_landing_endpoint(faculty_user)))
 
@@ -2052,7 +2623,9 @@ def faculty_request_approval():
 
 @app.get("/faculty/logout")
 def faculty_logout():
+    session.pop("student_id", None)
     session.pop("faculty_user_id", None)
+    session.pop("admin_user_id", None)
     return redirect(url_for("faculty_login"))
 
 
@@ -2093,6 +2666,7 @@ def faculty_dashboard():
 @app.get("/faculty/news")
 @faculty_approved_required
 def faculty_news_list():
+    return redirect(url_for("faculty_chat_panel"))
     db = get_db()
     ensure_news_posts_rich_schema(db)
     ensure_news_posts_faculty_author_schema(db)
@@ -2140,6 +2714,7 @@ def faculty_news_list():
 @app.get("/faculty/news/older")
 @faculty_approved_required
 def faculty_news_older():
+    return redirect(url_for("faculty_chat_panel"))
     db = get_db()
     ensure_news_posts_rich_schema(db)
     ensure_news_posts_faculty_author_schema(db)
@@ -2214,6 +2789,7 @@ def faculty_news_older():
 @app.get("/faculty/news/new")
 @faculty_approved_required
 def faculty_news_new():
+    return redirect(url_for("faculty_chat_panel"))
     db = get_db()
     fid = get_current_faculty_id()
     faculty_user = db.execute("SELECT * FROM faculty_users WHERE id = ?", (int(fid),)).fetchone()
@@ -2234,6 +2810,7 @@ def faculty_news_new():
 @app.post("/faculty/news/new")
 @faculty_approved_required
 def faculty_news_create():
+    return redirect(url_for("faculty_chat_panel"))
     db = get_db()
     ensure_news_posts_rich_schema(db)
     ensure_news_posts_faculty_author_schema(db)
@@ -2299,6 +2876,7 @@ def faculty_news_create():
 @app.get("/faculty/news/<int:post_id>/edit")
 @faculty_approved_required
 def faculty_news_edit(post_id: int):
+    return redirect(url_for("faculty_chat_panel"))
     db = get_db()
     ensure_news_posts_rich_schema(db)
     ensure_news_posts_faculty_author_schema(db)
@@ -2327,6 +2905,7 @@ def faculty_news_edit(post_id: int):
 @app.post("/faculty/news/<int:post_id>/edit")
 @faculty_approved_required
 def faculty_news_update(post_id: int):
+    return redirect(url_for("faculty_chat_panel"))
     db = get_db()
     ensure_news_posts_rich_schema(db)
     ensure_news_posts_faculty_author_schema(db)
@@ -2411,6 +2990,7 @@ def faculty_news_update(post_id: int):
 @app.post("/faculty/news/<int:post_id>/delete")
 @faculty_approved_required
 def faculty_news_delete(post_id: int):
+    return redirect(url_for("faculty_chat_panel"))
     db = get_db()
     ensure_news_posts_faculty_author_schema(db)
     fid = get_current_faculty_id()
@@ -3023,9 +3603,10 @@ def faculty_vault_files_bulk_copy():
 @app.post("/faculty/news/quick")
 @faculty_approved_required
 def faculty_news_quick_create():
+    return redirect(url_for("faculty_chat_panel"))
     message = (request.form.get("message") or "").strip()
     if not message:
-        return redirect(url_for("faculty_dashboard"))
+        return redirect(url_for("faculty_news_list"))
 
     db = get_db()
     ensure_news_posts_rich_schema(db)
@@ -3075,7 +3656,7 @@ def faculty_news_quick_create():
         ),
     )
     db.commit()
-    return redirect(url_for("faculty_dashboard"))
+    return redirect(url_for("faculty_news_list"))
 
 
 @app.get("/faculty/profile")
@@ -3388,7 +3969,8 @@ def admin_dashboard():
     ensure_faculty_users_schema(db)
     aid = get_current_admin_id()
     admin_user = db.execute("SELECT * FROM admin_users WHERE id = ?", (aid,)).fetchone()
-    news_count = db.execute("SELECT COUNT(*) FROM news_posts").fetchone()[0]
+    ensure_group_chat_schema(db)
+    chat_count = db.execute("SELECT COUNT(*) FROM group_chat_messages WHERE is_deleted = 0").fetchone()[0]
     open_forms = 0
     try:
         rows = db.execute("SELECT open_from, open_to FROM exam_forms").fetchall()
@@ -3403,7 +3985,7 @@ def admin_dashboard():
         page_subtitle="Manage restricted content",
         active_page="admin",
         admin_user=admin_user,
-        news_count=int(news_count),
+        chat_count=int(chat_count),
         open_forms=int(open_forms),
         error=None,
     )
@@ -3412,12 +3994,14 @@ def admin_dashboard():
 @app.post("/admin/news/quick")
 @admin_login_required
 def admin_news_quick_create():
+    return redirect(url_for("admin_chat_panel"))
     message = (request.form.get("message") or "").strip()
     if not message:
         db = get_db()
         aid = get_current_admin_id()
         admin_user = db.execute("SELECT * FROM admin_users WHERE id = ?", (aid,)).fetchone()
-        news_count = db.execute("SELECT COUNT(*) FROM news_posts").fetchone()[0]
+        ensure_group_chat_schema(db)
+        chat_count = db.execute("SELECT COUNT(*) FROM group_chat_messages WHERE is_deleted = 0").fetchone()[0]
         open_forms = 0
         try:
             rows = db.execute("SELECT open_from, open_to FROM exam_forms").fetchall()
@@ -3432,7 +4016,7 @@ def admin_news_quick_create():
             page_subtitle="Manage restricted content",
             active_page="admin",
             admin_user=admin_user,
-            news_count=int(news_count),
+            chat_count=int(chat_count),
             open_forms=int(open_forms),
             error="Please type a message before sending.",
         )
@@ -4815,6 +5399,7 @@ def admin_teachers_delete(teacher_id: int):
 @app.get("/admin/news")
 @admin_login_required
 def admin_news_list():
+    return redirect(url_for("admin_chat_panel"))
     db = get_db()
     posts = db.execute(
         "SELECT * FROM news_posts ORDER BY datetime(date_time) DESC"
@@ -4831,6 +5416,7 @@ def admin_news_list():
 @app.get("/admin/news/new")
 @admin_login_required
 def admin_news_new():
+    return redirect(url_for("admin_chat_panel"))
     return render_template(
         "admin_news_form.html",
         page_title="New News Post",
@@ -4844,6 +5430,7 @@ def admin_news_new():
 @app.post("/admin/news/new")
 @admin_login_required
 def admin_news_create():
+    return redirect(url_for("admin_chat_panel"))
     priority = (request.form.get("priority") or "").strip().upper() or "NORMAL"
     heading = (request.form.get("heading") or "").strip()
     body_html_raw = (request.form.get("body_html") or "").strip()
@@ -4900,6 +5487,7 @@ def admin_news_create():
 @app.get("/admin/news/<int:post_id>/edit")
 @admin_login_required
 def admin_news_edit(post_id: int):
+    return redirect(url_for("admin_chat_panel"))
     db = get_db()
     post = db.execute("SELECT * FROM news_posts WHERE id = ?", (int(post_id),)).fetchone()
     if not post:
@@ -4917,6 +5505,7 @@ def admin_news_edit(post_id: int):
 @app.post("/admin/news/<int:post_id>/edit")
 @admin_login_required
 def admin_news_update(post_id: int):
+    return redirect(url_for("admin_chat_panel"))
     priority = (request.form.get("priority") or "").strip().upper() or "NORMAL"
     heading = (request.form.get("heading") or "").strip()
     body_html_raw = (request.form.get("body_html") or "").strip()
@@ -4993,6 +5582,7 @@ def admin_news_update(post_id: int):
 @app.post("/admin/news/<int:post_id>/delete")
 @admin_login_required
 def admin_news_delete(post_id: int):
+    return redirect(url_for("admin_chat_panel"))
     db = get_db()
     db.execute("DELETE FROM news_posts WHERE id = ?", (int(post_id),))
     db.commit()
@@ -5461,6 +6051,8 @@ def register_post():
     seed_attendance_for_student(db, student_id)
 
     db.commit()
+    session.pop("admin_user_id", None)
+    session.pop("faculty_user_id", None)
     session["student_id"] = student_id
     return redirect(url_for("dashboard"))
 
@@ -5894,6 +6486,7 @@ def vault():
 @app.get("/news")
 @login_required
 def news():
+    return redirect(url_for("chat_panel"))
     db = get_db()
 
     filters = {
