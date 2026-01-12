@@ -674,6 +674,39 @@ function applyAttendanceRings() {
     });
 }
 
+function initUxReveal() {
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const nodes = Array.from(document.querySelectorAll('.minimal-card, .admin-card, .faculty-card'));
+    if (!nodes.length) {
+        return;
+    }
+
+    if (reduceMotion || !('IntersectionObserver' in window)) {
+        nodes.forEach((el) => {
+            el.classList.remove('ux-reveal');
+        });
+        return;
+    }
+
+    nodes.forEach((el) => {
+        el.classList.add('ux-reveal');
+    });
+
+    const io = new IntersectionObserver(
+        (entries) => {
+            entries.forEach((e) => {
+                if (!e.isIntersecting) return;
+                const el = e.target;
+                el.classList.add('is-in');
+                io.unobserve(el);
+            });
+        },
+        { threshold: 0.08, rootMargin: '0px 0px -6% 0px' },
+    );
+
+    nodes.forEach((el) => io.observe(el));
+}
+
 function initWeeklyTimetable() {
     const root = document.querySelector('[data-weekly-timetable]');
     if (!root) {
@@ -1519,6 +1552,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initPageProgress();
     generateAttendance();
     applyAttendanceRings();
+    initUxReveal();
     initWeeklyTimetable();
     initScheduleCalendarSheet();
     initMobileNav();
