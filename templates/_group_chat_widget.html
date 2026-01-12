@@ -6,6 +6,38 @@
         --gc-scroll-pad-bottom: calc(9.25rem + env(safe-area-inset-bottom));
     }
 
+    [data-gc-composer] :where(.minimal-input) {
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        background: white;
+        padding: 10px 16px;
+        font-size: 14px;
+        transition: all 0.2s ease;
+    }
+    [data-gc-composer] :where(.minimal-input:focus) {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+    [data-gc-composer] :where(textarea.minimal-input) {
+        resize: none;
+    }
+    [data-gc-composer] :where(.minimal-btn) {
+        border-radius: 12px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+    [data-gc-composer] :where(.minimal-btn-primary) {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        color: white;
+        border: none;
+    }
+    [data-gc-composer] :where(.minimal-btn-primary:hover) {
+        background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+    }
+
     [data-gc-message] [data-gc-actions] {
         opacity: 0;
         transform: translateY(-2px);
@@ -75,7 +107,7 @@
                                         </div>
                                         <div class="p-2 flex items-center justify-between gap-2 min-w-0">
                                             <p class="text-xs text-slate-600 truncate min-w-0">{{ m.attachment_name or 'Image' }}</p>
-                                            <a href="{{ att_url }}" target="_blank" rel="noopener" class="px-2 py-1 rounded-lg minimal-btn minimal-btn-primary text-xs font-medium inline-flex items-center justify-center gap-1 shrink-0">View</a>
+                                            <a href="{{ att_url }}" target="_blank" rel="noopener" class="px-2 py-1 rounded-lg minimal-btn minimal-btn-primary text-xs font-medium inline-flex items-center justify-center gap-1 shrink-0"><span class="iconify text-sm" data-icon="solar:eye-bold"></span> View</a>
                                         </div>
                                     </div>
                                 {% else %}
@@ -116,7 +148,7 @@
         <div class="mx-auto w-full max-w-[720px] rounded-3xl border border-slate-200/60 bg-white/70 backdrop-blur-md shadow-[0_10px_28px_rgba(15,23,42,0.08)] p-3">
             <form method="post" action="{{ chat_send_url }}" enctype="multipart/form-data" class="space-y-2" data-gc-form>
                 <div class="grid grid-cols-[1fr_auto_auto] gap-2 items-center mb-0">
-                    <input name="message" class="minimal-input w-full" placeholder="Type a message..." data-gc-message>
+                    <textarea name="message" class="minimal-input w-full h-12 leading-5 py-3 resize-none" placeholder="Type a message..." rows="1" data-gc-message></textarea>
 
                     <div>
                         <input type="file" name="attachment" class="hidden" data-gc-attachment>
@@ -510,7 +542,7 @@
                         </div>
                         <div class="p-2 flex items-center justify-between gap-2 min-w-0">
                             <p class="text-xs text-slate-600 truncate min-w-0">${escapeHtml(m.attachment_name || 'Image')}</p>
-                            <a href="${escapeHtml(m.attachment_url)}" target="_blank" rel="noopener" class="px-2 py-1 rounded-lg minimal-btn minimal-btn-primary text-xs font-medium inline-flex items-center justify-center gap-1 shrink-0">View</a>
+                            <a href="${escapeHtml(m.attachment_url)}" target="_blank" rel="noopener" class="px-2 py-1 rounded-lg minimal-btn minimal-btn-primary text-xs font-medium inline-flex items-center justify-center gap-1 shrink-0"><span class="iconify text-sm" data-icon="solar:eye-bold"></span> View</a>
                         </div>
                     </div>
                 `;
