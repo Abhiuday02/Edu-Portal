@@ -34,6 +34,10 @@
                             <input name="name" type="text" class="admin-input w-full" required data-f-name />
                         </div>
                         <div>
+                            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Type</label>
+                            <input name="faculty_type" type="text" class="admin-input w-full" data-f-faculty_type />
+                        </div>
+                        <div>
                             <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Designation</label>
                             <input name="designation" type="text" class="admin-input w-full" required data-f-designation />
                         </div>
@@ -204,6 +208,7 @@
 
     <form method="post" action="{{ url_for('admin_teachers_create') }}" class="grid grid-cols-1 md:grid-cols-3 gap-3">
         <input name="name" type="text" placeholder="Full name" class="admin-input" />
+        <input name="faculty_type" type="text" placeholder="Type (e.g. Permanent)" class="admin-input" />
         <input name="designation" type="text" placeholder="Designation (e.g. HOD)" class="admin-input" />
         <input name="department" type="text" placeholder="Department" class="admin-input" />
         <input name="email" type="email" placeholder="Email (optional)" class="admin-input" />
@@ -214,70 +219,7 @@
     </form>
 </div>
 
-<div class="admin-card overflow-hidden">
-    <div class="overflow-x-auto">
-        <table class="admin-table w-full text-left">
-            <thead class="bg-slate-50 border-b border-slate-200">
-                <tr class="text-xs text-slate-500">
-                    <th class="px-4 py-3 font-medium">Name</th>
-                    <th class="px-4 py-3 font-medium">Designation</th>
-                    <th class="px-4 py-3 font-medium">Department</th>
-                    <th class="px-4 py-3 font-medium">Email</th>
-                    <th class="px-4 py-3 font-medium">Phone</th>
-                    <th class="px-4 py-3 font-medium">Action</th>
-                </tr>
-            </thead>
-            <tbody class="text-sm">
-                {% if teachers %}
-                    {% for t in teachers %}
-                        <tr class="border-t border-slate-100">
-                            <td class="px-4 py-3 font-medium text-slate-900">{{ t.name }}</td>
-                            <td class="px-4 py-3 text-slate-700">{{ t.designation }}</td>
-                            <td class="px-4 py-3 text-slate-700">{{ t.department }}</td>
-                            <td class="px-4 py-3 text-slate-700">{{ t.email or '' }}</td>
-                            <td class="px-4 py-3 text-slate-700">{{ t.phone or '' }}</td>
-                            <td class="px-4 py-3">
-                                <div class="flex items-center gap-2 whitespace-nowrap">
-                                    <button
-                                        type="button"
-                                        class="admin-btn admin-btn-soft text-xs inline-flex items-center gap-2"
-                                        data-admin-teacher-edit-open
-                                        data-teacher-id="{{ t.id }}"
-                                        data-name="{{ t.name|e }}"
-                                        data-designation="{{ t.designation|e }}"
-                                        data-department="{{ t.department|e }}"
-                                        data-email="{{ (t.email or '')|e }}"
-                                        data-phone="{{ (t.phone or '')|e }}"
-                                    ><span class="iconify text-sm" data-icon="solar:pen-2-outline"></span> Edit</button>
-                                    <form method="post" action="{{ url_for('admin_teachers_delete', teacher_id=t.id) }}" onsubmit="return confirm('Delete this teacher?');">
-                                        <button type="submit" class="admin-btn admin-btn-danger text-xs inline-flex items-center gap-2"><span class="iconify text-sm text-rose-700" data-icon="solar:trash-bin-trash-outline"></span> Delete</button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                {% else %}
-                    <tr>
-                        <td class="px-4 py-8 text-slate-500" colspan="6">No teachers added yet.</td>
-                    </tr>
-                {% endif %}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<div class="admin-card overflow-hidden mt-6">
-    <div class="px-6 py-5 border-b border-slate-200 flex items-center justify-between gap-3">
-        <div>
-            <h2 class="text-lg font-semibold text-slate-900">Faculty Signups</h2>
-            <p class="text-sm text-slate-500 mt-1">Approve or reject faculty accounts. Only approved faculty can access their panel.</p>
-        </div>
-        <a href="{{ url_for('faculty_register') }}" target="_blank" class="admin-btn admin-btn-soft inline-flex items-center gap-2">
-            <span class="iconify text-base text-indigo-600" data-icon="solar:add-square-bold"></span>
-            Open Signup
-        </a>
-    </div>
-
+<div class="admin-card overflow-x-hidden overflow-y-visible">
     <div class="overflow-x-auto">
         <table class="admin-table w-full text-left">
             <thead class="bg-slate-50 border-b border-slate-200">
@@ -293,17 +235,17 @@
                 </tr>
             </thead>
             <tbody class="text-sm">
-                {% if faculty_users %}
-                    {% for f in faculty_users %}
+                {% if faculty_items %}
+                    {% for item in faculty_items %}
+                        {% set st = (item.status or 'PENDING')|upper %}
                         <tr class="border-t border-slate-100">
-                            <td class="px-4 py-3 font-medium text-slate-900">{{ f.full_name }}</td>
-                            <td class="px-4 py-3 text-slate-700">{{ f.department }}</td>
-                            <td class="px-4 py-3 text-slate-700">{{ f.faculty_type }}</td>
-                            <td class="px-4 py-3 text-slate-700">{{ f.designation }}</td>
-                            <td class="px-4 py-3 text-slate-700">{{ f.email }}</td>
-                            <td class="px-4 py-3 text-slate-700">{{ f.phone }}</td>
+                            <td class="px-4 py-3 font-medium text-slate-900">{{ item.name }}</td>
+                            <td class="px-4 py-3 text-slate-700">{{ item.department }}</td>
+                            <td class="px-4 py-3 text-slate-700">{{ item.faculty_type or 'Teacher' }}</td>
+                            <td class="px-4 py-3 text-slate-700">{{ item.designation }}</td>
+                            <td class="px-4 py-3 text-slate-700">{{ item.email or '' }}</td>
+                            <td class="px-4 py-3 text-slate-700">{{ item.phone or '' }}</td>
                             <td class="px-4 py-3">
-                                {% set st = (f.status or 'PENDING')|upper %}
                                 {% if st == 'APPROVED' %}
                                     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">APPROVED</span>
                                 {% elif st == 'REJECTED' %}
@@ -313,48 +255,97 @@
                                 {% endif %}
                             </td>
                             <td class="px-4 py-3">
-                                <div class="flex items-center gap-2 whitespace-nowrap">
-                                    {% if (f.status or 'PENDING')|upper != 'APPROVED' %}
-                                        <form method="post" action="{{ url_for('admin_faculty_approve', faculty_id=f.id) }}" onsubmit="return confirm('Approve this faculty account?');">
-                                            <button type="submit" class="admin-btn admin-btn-primary text-xs inline-flex items-center gap-2"><span class="iconify text-sm" data-icon="solar:check-circle-bold"></span> Approve</button>
-                                        </form>
-                                    {% endif %}
-                                    {% if (f.status or 'PENDING')|upper != 'REJECTED' %}
-                                        <form method="post" action="{{ url_for('admin_faculty_reject', faculty_id=f.id) }}" onsubmit="return confirm('Reject this faculty account?');">
-                                            <button type="submit" class="admin-btn admin-btn-soft text-xs inline-flex items-center gap-2"><span class="iconify text-sm" data-icon="solar:close-circle-bold"></span> Reject</button>
-                                        </form>
-                                    {% endif %}
-                                    <a href="{{ url_for('admin_faculty_weekly', faculty_id=f.id) }}" class="admin-btn admin-btn-soft text-xs inline-flex items-center gap-2">
-                                        <span class="iconify text-sm" data-icon="solar:calendar-outline"></span>
-                                        Weekly
-                                    </a>
-                                    <a href="{{ url_for('admin_faculty_vault', faculty_id=f.id) }}" class="admin-btn admin-btn-soft text-xs inline-flex items-center gap-2">
-                                        <span class="iconify text-sm" data-icon="solar:folder-with-files-outline"></span>
-                                        Vault
-                                    </a>
-                                    <button
-                                        type="button"
-                                        class="admin-btn admin-btn-soft text-xs inline-flex items-center gap-2"
-                                        data-admin-faculty-edit-open
-                                        data-faculty-id="{{ f.id }}"
-                                        data-full_name="{{ f.full_name|e }}"
-                                        data-department="{{ f.department|e }}"
-                                        data-faculty_type="{{ f.faculty_type|e }}"
-                                        data-designation="{{ f.designation|e }}"
-                                        data-email="{{ f.email|e }}"
-                                        data-phone="{{ f.phone|e }}"
-                                        data-status="{{ (f.status or 'PENDING')|upper|e }}"
-                                    ><span class="iconify text-sm" data-icon="solar:pen-2-outline"></span> Edit</button>
-                                    <form method="post" action="{{ url_for('admin_faculty_delete', faculty_id=f.id) }}" onsubmit="return confirm('Delete this faculty user?');">
-                                        <button type="submit" class="admin-btn admin-btn-danger text-xs inline-flex items-center gap-2"><span class="iconify text-sm text-rose-700" data-icon="solar:trash-bin-trash-outline"></span> Delete</button>
-                                    </form>
+                                <div class="relative inline-flex">
+                                    <button type="button" class="admin-btn admin-btn-soft text-xs inline-flex items-center justify-center px-3" aria-label="Actions" data-action-menu-trigger>
+                                        <span class="iconify text-lg" data-icon="solar:menu-dots-bold"></span>
+                                    </button>
+
+                                    <div class="hidden" data-action-menu>
+                                        <div class="admin-card border border-slate-200 bg-white rounded-2xl p-2 w-48">
+                                            <div class="flex flex-col">
+                                                    {% if item.kind == 'faculty' %}
+                                                        {% if st != 'APPROVED' %}
+                                                            <form method="post" action="{{ url_for('admin_faculty_approve', faculty_id=item.id) }}" onsubmit="return confirm('Approve this faculty account?');">
+                                                                <button type="submit" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm text-slate-700 inline-flex items-center gap-2">
+                                                                    <span class="iconify text-base text-emerald-600" data-icon="solar:check-circle-bold"></span>
+                                                                    Approve
+                                                                </button>
+                                                            </form>
+                                                        {% endif %}
+                                                        {% if st != 'REJECTED' %}
+                                                            <form method="post" action="{{ url_for('admin_faculty_reject', faculty_id=item.id) }}" onsubmit="return confirm('Reject this faculty account?');">
+                                                                <button type="submit" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm text-slate-700 inline-flex items-center gap-2">
+                                                                    <span class="iconify text-base text-rose-600" data-icon="solar:close-circle-bold"></span>
+                                                                    Reject
+                                                                </button>
+                                                            </form>
+                                                        {% endif %}
+
+                                                        <a href="{{ url_for('admin_faculty_weekly', faculty_id=item.id) }}" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm text-slate-700 inline-flex items-center gap-2">
+                                                            <span class="iconify text-base" data-icon="solar:calendar-outline"></span>
+                                                            Weekly
+                                                        </a>
+                                                        <a href="{{ url_for('admin_faculty_vault', faculty_id=item.id) }}" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm text-slate-700 inline-flex items-center gap-2">
+                                                            <span class="iconify text-base" data-icon="solar:folder-with-files-outline"></span>
+                                                            Vault
+                                                        </a>
+
+                                                        <button
+                                                            type="button"
+                                                            class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm text-slate-700 inline-flex items-center gap-2"
+                                                            data-admin-faculty-edit-open
+                                                            data-faculty-id="{{ item.id }}"
+                                                            data-full_name="{{ item.name|e }}"
+                                                            data-department="{{ item.department|e }}"
+                                                            data-faculty_type="{{ (item.faculty_type or '')|e }}"
+                                                            data-designation="{{ item.designation|e }}"
+                                                            data-email="{{ (item.email or '')|e }}"
+                                                            data-phone="{{ (item.phone or '')|e }}"
+                                                            data-status="{{ st|e }}"
+                                                        >
+                                                            <span class="iconify text-base" data-icon="solar:pen-2-outline"></span>
+                                                            Edit
+                                                        </button>
+
+                                                        <form method="post" action="{{ url_for('admin_faculty_delete', faculty_id=item.id) }}" onsubmit="return confirm('Delete this faculty user?');">
+                                                            <button type="submit" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm text-rose-700 inline-flex items-center gap-2">
+                                                                <span class="iconify text-base text-rose-700" data-icon="solar:trash-bin-trash-outline"></span>
+                                                                Delete
+                                                            </button>
+                                                        </form>
+                                                    {% else %}
+                                                        <button
+                                                            type="button"
+                                                            class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm text-slate-700 inline-flex items-center gap-2"
+                                                            data-admin-teacher-edit-open
+                                                            data-teacher-id="{{ item.id }}"
+                                                            data-name="{{ item.name|e }}"
+                                                            data-faculty_type="{{ (item.faculty_type or '')|e }}"
+                                                            data-designation="{{ item.designation|e }}"
+                                                            data-department="{{ item.department|e }}"
+                                                            data-email="{{ (item.email or '')|e }}"
+                                                            data-phone="{{ (item.phone or '')|e }}"
+                                                        >
+                                                            <span class="iconify text-base" data-icon="solar:pen-2-outline"></span>
+                                                            Edit
+                                                        </button>
+                                                        <form method="post" action="{{ url_for('admin_teachers_delete', teacher_id=item.id) }}" onsubmit="return confirm('Delete this teacher?');">
+                                                            <button type="submit" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm text-rose-700 inline-flex items-center gap-2">
+                                                                <span class="iconify text-base text-rose-700" data-icon="solar:trash-bin-trash-outline"></span>
+                                                                Delete
+                                                            </button>
+                                                        </form>
+                                                    {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td class="px-4 py-8 text-slate-500" colspan="8">No faculty signups yet.</td>
+                        <td class="px-4 py-8 text-slate-500" colspan="8">No faculty added yet.</td>
                     </tr>
                 {% endif %}
             </tbody>
@@ -363,6 +354,88 @@
 </div>
 
 <script>
+    (function () {
+        const triggers = Array.from(document.querySelectorAll('[data-action-menu-trigger]'));
+        if (!triggers.length) return;
+
+        let active = null;
+
+        function close() {
+            if (!active) return;
+            const { host, menu, placeholder, popover } = active;
+            menu.classList.add('hidden');
+            placeholder.replaceWith(menu);
+            popover.remove();
+            host.setAttribute('aria-expanded', 'false');
+            active = null;
+        }
+
+        function open(trigger) {
+            close();
+            const row = trigger.closest('tr') || trigger.parentElement;
+            const menu = row ? row.querySelector('[data-action-menu]') : null;
+            if (!menu) return;
+
+            const popover = document.createElement('div');
+            popover.style.position = 'fixed';
+            popover.style.left = '0px';
+            popover.style.top = '0px';
+            popover.style.zIndex = '9999';
+            document.body.appendChild(popover);
+
+            const placeholder = document.createElement('span');
+            menu.replaceWith(placeholder);
+            menu.classList.remove('hidden');
+            popover.appendChild(menu);
+
+            const r = trigger.getBoundingClientRect();
+            const m = menu.getBoundingClientRect();
+
+            const margin = 8;
+            let left = r.right - m.width;
+            left = Math.max(margin, Math.min(left, window.innerWidth - m.width - margin));
+
+            let top = r.bottom + 6;
+            if (top + m.height + margin > window.innerHeight) {
+                top = r.top - m.height - 6;
+            }
+            top = Math.max(margin, Math.min(top, window.innerHeight - m.height - margin));
+
+            popover.style.left = `${left}px`;
+            popover.style.top = `${top}px`;
+
+            trigger.setAttribute('aria-expanded', 'true');
+
+            active = { host: trigger, menu, placeholder, popover };
+        }
+
+        triggers.forEach((t) => {
+            t.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (active && active.host === t) {
+                    close();
+                    return;
+                }
+                open(t);
+            });
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!active) return;
+            const target = e.target;
+            if (active.host.contains(target)) return;
+            if (active.menu.contains(target)) return;
+            close();
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') close();
+        });
+
+        window.addEventListener('resize', close);
+        window.addEventListener('scroll', close, true);
+    })();
+
     (function () {
         const btn = document.getElementById('adminTeachersFiltersBtn');
         const bottomSheet = document.getElementById('adminTeachersFiltersBottomSheet');
@@ -524,6 +597,7 @@
 
             const map = {
                 name: 'data-name',
+                faculty_type: 'data-faculty_type',
                 designation: 'data-designation',
                 department: 'data-department',
                 email: 'data-email',

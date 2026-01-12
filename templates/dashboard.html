@@ -2,7 +2,257 @@
 
 {% block content %}
 <section class="tab-content space-y-8">
-    <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
+
+    <div class="flex flex-col lg:flex-row gap-5 items-start">
+        <div class="w-full lg:w-2/3 space-y-5">
+            <div class="minimal-card p-5 self-start h-fit">
+            {% set day_names = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}
+            <div class="flex items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-xl font-semibold text-slate-900">Today's Schedule</h2>
+                    <p class="text-sm text-slate-500 mt-1">{{ day_names[today_dow] if today_dow is not none else 'Today' }}</p>
+                </div>
+                <a class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium inline-flex items-center justify-center gap-2" href="{{ url_for('schedules') }}">
+                    <span class="iconify text-base" data-icon="solar:calendar-bold"></span>
+                    Open
+                </a>
+            </div>
+
+            <div class="mt-3 space-y-2">
+                {% if today_schedule and today_schedule|length > 0 %}
+                    {% for r in today_schedule %}
+                        <div class="py-3">
+                            <div class="flex items-center justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="text-sm font-semibold text-slate-900 truncate">{{ r.subject }}</p>
+                                    <p class="text-xs text-slate-500 mt-0.5 truncate">{{ r.room }}{% if r.instructor %} · {{ r.instructor }}{% endif %}</p>
+                                </div>
+                                <span class="shrink-0 minimal-badge bg-slate-100 text-slate-700">{{ r.start_time }}–{{ r.end_time }}</span>
+                            </div>
+                        </div>
+                        {% if not loop.last %}
+                            <div class="border-t border-slate-100"></div>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-600">No classes scheduled for today.</div>
+                {% endif %}
+            </div>
+            </div>
+
+            <div class="minimal-card p-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                    <div>
+                        <h2 class="text-xl font-semibold text-slate-900">Vault</h2>
+                        <p class="text-sm text-slate-500 mt-1">Organize important documents into folders</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <a class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all" href="{{ url_for('chat_panel') }}">Chat</a>
+                        <a class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium" href="{{ url_for('schedules') }}">Timetable</a>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <!-- Mobile Compact View -->
+                    <div class="lg:hidden p-4 rounded-2xl border border-slate-200 bg-white">
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-sm font-semibold text-slate-900">Vault</p>
+                            <button id="vaultActionBtn" class="p-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-all">
+                                <span class="iconify text-lg" data-icon="solar:add-square-bold"></span>
+                            </button>
+                        </div>
+                        
+                        <!-- Limited Folders Display -->
+                        <div class="mb-3">
+                            <p class="text-xs text-slate-500 mb-2">Folders ({{ vault_folders|length if vault_folders is defined else 0 }})</p>
+                            {% if vault_folders %}
+                                <div class="flex flex-wrap gap-2">
+                                    {% for f in vault_folders[:3] %}
+                                        <div class="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs">
+                                            <span class="iconify text-sm" data-icon="solar:folder-bold"></span>
+                                            <span>{{ f.name }}</span>
+                                        </div>
+                                    {% endfor %}
+                                    {% if vault_folders|length > 3 %}
+                                        <div class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs">
+                                            +{{ vault_folders|length - 3 }} more
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <p class="text-xs text-slate-500">No folders yet</p>
+                            {% endif %}
+                        </div>
+                        
+                        <a href="{{ url_for('vault') }}" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">View All Folders →</a>
+                    </div>
+
+                    <!-- Desktop View -->
+                    <div class="hidden lg:block p-4 rounded-2xl border border-slate-200 bg-white">
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-sm font-semibold text-slate-900">Create Folder</p>
+                            <span class="text-xs text-slate-500">{{ (vault_folders|length) if vault_folders is defined else 0 }} folders</span>
+                        </div>
+                        <form method="post" action="{{ url_for('vault_folder_create') }}" class="flex flex-col sm:flex-row gap-2">
+                            <input name="name" class="minimal-input w-full" placeholder="e.g. Certificates" required>
+                            <button type="submit" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium inline-flex items-center justify-center gap-2"><span class="iconify text-base" data-icon="solar:add-square-bold"></span> Create</button>
+                        </form>
+                        {% if vault_folders %}
+                            <div class="mt-4 flex flex-wrap gap-2">
+                                {% for f in vault_folders %}
+                                    <span class="minimal-badge bg-slate-100 text-slate-700">{{ f.name }}</span>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="mt-3 text-xs text-slate-500">No folders yet. Create one to start uploading.</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Mobile Upload Section (Hidden) -->
+                    <div class="lg:hidden p-4 rounded-2xl border border-slate-200 bg-white hidden" id="mobileUploadSection">
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-sm font-semibold text-slate-900">Upload Document</p>
+                            <span class="text-xs text-slate-500">Stored privately</span>
+                        </div>
+                        <form method="post" action="{{ url_for('vault_file_upload') }}" enctype="multipart/form-data" class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-500 mb-1">Folder</label>
+                                <select name="folder_id" class="minimal-input w-full" {% if not vault_folders %}disabled{% endif %} required>
+                                    {% if vault_folders %}
+                                        {% for f in vault_folders %}
+                                            <option value="{{ f.id }}">{{ f.name }}</option>
+                                        {% endfor %}
+                                    {% else %}
+                                        <option value="">Create a folder first</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-500 mb-1">File</label>
+                                <input type="file" name="file" class="minimal-input w-full" {% if not vault_folders %}disabled{% endif %} required>
+                                <p class="text-xs text-slate-400 mt-2">PDFs, images, and documents are supported.</p>
+                            </div>
+                            <div class="flex items-center justify-end">
+                                <button type="submit" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium inline-flex items-center justify-center gap-2" {% if not vault_folders %}disabled{% endif %}><span class="iconify text-base" data-icon="solar:upload-bold"></span> Upload</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Desktop Upload Section -->
+                    <div class="hidden lg:block p-4 rounded-2xl border border-slate-200 bg-white">
+                        <div class="flex items-center justify-between mb-3">
+                            <p class="text-sm font-semibold text-slate-900">Upload Document</p>
+                            <span class="text-xs text-slate-500">Stored privately</span>
+                        </div>
+                        <form method="post" action="{{ url_for('vault_file_upload') }}" enctype="multipart/form-data" class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-500 mb-1">Folder</label>
+                                <select name="folder_id" class="minimal-input w-full" {% if not vault_folders %}disabled{% endif %} required>
+                                    {% if vault_folders %}
+                                        {% for f in vault_folders %}
+                                            <option value="{{ f.id }}">{{ f.name }}</option>
+                                        {% endfor %}
+                                    {% else %}
+                                        <option value="">Create a folder first</option>
+                                    {% endif %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-500 mb-1">File</label>
+                                <input type="file" name="file" class="minimal-input w-full" {% if not vault_folders %}disabled{% endif %} required>
+                                <p class="text-xs text-slate-400 mt-2">PDFs, images, and documents are supported.</p>
+                            </div>
+                            <div class="flex items-center justify-end">
+                                <button type="submit" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium inline-flex items-center justify-center gap-2" {% if not vault_folders %}disabled{% endif %}><span class="iconify text-base" data-icon="solar:upload-bold"></span> Upload</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="mt-4 p-4 rounded-2xl border border-slate-200 bg-white">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-sm font-semibold text-slate-900">Recent Files</p>
+                        <span class="text-xs text-slate-500">Latest uploads</span>
+                    </div>
+                    <div class="space-y-2">
+                        {% if vault_files %}
+                            {% for vf in vault_files %}
+                                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3">
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-medium text-slate-900 truncate">{{ vf.original_name }}</p>
+                                        <p class="text-xs text-slate-500 mt-1">Folder: <span class="text-slate-700">{{ vf.folder_name }}</span> · {{ vf.uploaded_at|fmt_dt }}</p>
+                                    </div>
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <a href="{{ url_for('vault_file_download', file_id=vf.id) }}" class="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 transition-all inline-flex items-center justify-center gap-2"><span class="iconify text-sm" data-icon="solar:download-bold"></span> Download</a>
+                                        <form method="post" action="{{ url_for('vault_file_delete', file_id=vf.id) }}" onsubmit="return confirm('Delete this file?');">
+                                            <button type="submit" class="px-3 py-2 rounded-xl bg-rose-50 text-rose-700 text-xs font-medium hover:bg-rose-100 transition-all inline-flex items-center justify-center gap-2"><span class="iconify text-sm text-rose-700" data-icon="solar:trash-bin-trash-outline"></span> Delete</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-600">No files uploaded yet.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full lg:w-1/3 space-y-4">
+            <div class="minimal-card p-5">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-900">Recent Messages</h3>
+                        <p class="text-sm text-slate-500 mt-1">Latest from the group chat</p>
+                    </div>
+                    <a class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all" href="{{ url_for('chat_panel') }}">Open</a>
+                </div>
+
+                <div class="mt-3 space-y-2">
+                    {% if chat_recent and chat_recent|length > 0 %}
+                        {% for m in chat_recent %}
+                            <div class="p-3 rounded-xl border border-slate-200 bg-white">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-semibold text-slate-900 truncate">{{ m.actor_name }}</p>
+                                        <p class="text-xs text-slate-500 mt-1" style="display:-webkit-box;line-clamp:2;-webkit-line-clamp:2;-webkit-box-orient:vertical; overflow:hidden;">{{ m.message if m.message else (m.attachment_name if m.attachment_name else 'Attachment') }}</p>
+                                    </div>
+                                    <span class="shrink-0 text-[10px] text-slate-400">{{ m.created_at|fmt_dt }}</span>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-600">No recent messages.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="minimal-card p-5">
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-slate-900">Resources</h3>
+                        <p class="text-sm text-slate-500 mt-1">Quick glance of new study material</p>
+                    </div>
+                    <a class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all" href="{{ url_for('library') }}">Open</a>
+                </div>
+
+                <div class="mt-3 space-y-2">
+                    {% if resources_recent and resources_recent|length > 0 %}
+                        {% for r in resources_recent %}
+                            <div class="p-3 rounded-xl border border-slate-200 bg-white">
+                                <p class="text-sm font-semibold text-slate-900">{{ r.heading }}</p>
+                                <p class="text-xs text-slate-500 mt-1" style="display:-webkit-box;line-clamp:2;-webkit-line-clamp:2;-webkit-box-orient:vertical; overflow:hidden;">{{ r.description }}</p>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-600">No resources available.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="hidden grid grid-cols-2 md:grid-cols-6 gap-4">
         <a class="minimal-card p-5 text-center hover:shadow-md transition-all cursor-pointer group" href="{{ url_for('chat_panel') }}">
             <div class="text-2xl mb-3 group-hover:scale-110 transition-transform"><span class="iconify" data-icon="solar:bell-linear"></span></div>
             <p class="text-sm font-medium text-slate-700">Notifications</p>
@@ -36,257 +286,9 @@
         </a>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div class="lg:col-span-2 minimal-card p-6">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                <div>
-                    <h2 class="text-xl font-semibold text-slate-900">Vault</h2>
-                    <p class="text-sm text-slate-500 mt-1">Organize important documents into folders</p>
-                </div>
-                <div class="flex gap-2">
-                    <a class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all" href="{{ url_for('chat_panel') }}">Chat</a>
-                    <a class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium" href="{{ url_for('schedules') }}">Timetable</a>
-                </div>
-            </div>
+    <div class="hidden p-4 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-700 p-6 text-white"></div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <!-- Mobile Compact View -->
-                <div class="lg:hidden p-4 rounded-2xl border border-slate-200 bg-white">
-                    <div class="flex items-center justify-between mb-3">
-                        <p class="text-sm font-semibold text-slate-900">Vault</p>
-                        <button id="vaultActionBtn" class="p-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-all">
-                            <span class="iconify text-lg" data-icon="solar:add-square-bold"></span>
-                        </button>
-                    </div>
-                    
-                    <!-- Limited Folders Display -->
-                    <div class="mb-3">
-                        <p class="text-xs text-slate-500 mb-2">Folders ({{ vault_folders|length if vault_folders is defined else 0 }})</p>
-                        {% if vault_folders %}
-                            <div class="flex flex-wrap gap-2">
-                                {% for f in vault_folders[:3] %}
-                                    <div class="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs">
-                                        <span class="iconify text-sm" data-icon="solar:folder-bold"></span>
-                                        <span>{{ f.name }}</span>
-                                    </div>
-                                {% endfor %}
-                                {% if vault_folders|length > 3 %}
-                                    <div class="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs">
-                                        +{{ vault_folders|length - 3 }} more
-                                    </div>
-                                {% endif %}
-                            </div>
-                        {% else %}
-                            <p class="text-xs text-slate-500">No folders yet</p>
-                        {% endif %}
-                    </div>
-                    
-                    <a href="{{ url_for('vault') }}" class="text-xs text-indigo-600 hover:text-indigo-700 font-medium">View All Folders →</a>
-                </div>
-
-                <!-- Desktop View -->
-                <div class="hidden lg:block p-4 rounded-2xl border border-slate-200 bg-white">
-                    <div class="flex items-center justify-between mb-3">
-                        <p class="text-sm font-semibold text-slate-900">Create Folder</p>
-                        <span class="text-xs text-slate-500">{{ (vault_folders|length) if vault_folders is defined else 0 }} folders</span>
-                    </div>
-                    <form method="post" action="{{ url_for('vault_folder_create') }}" class="flex flex-col sm:flex-row gap-2">
-                        <input name="name" class="minimal-input w-full" placeholder="e.g. Certificates" required>
-                        <button type="submit" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium inline-flex items-center justify-center gap-2"><span class="iconify text-base" data-icon="solar:add-square-bold"></span> Create</button>
-                    </form>
-                    {% if vault_folders %}
-                        <div class="mt-4 flex flex-wrap gap-2">
-                            {% for f in vault_folders %}
-                                <span class="minimal-badge bg-slate-100 text-slate-700">{{ f.name }}</span>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <p class="mt-3 text-xs text-slate-500">No folders yet. Create one to start uploading.</p>
-                    {% endif %}
-                </div>
-
-                <!-- Mobile Upload Section (Hidden) -->
-                <div class="lg:hidden p-4 rounded-2xl border border-slate-200 bg-white hidden" id="mobileUploadSection">
-                    <div class="flex items-center justify-between mb-3">
-                        <p class="text-sm font-semibold text-slate-900">Upload Document</p>
-                        <span class="text-xs text-slate-500">Stored privately</span>
-                    </div>
-                    <form method="post" action="{{ url_for('vault_file_upload') }}" enctype="multipart/form-data" class="space-y-3">
-                        <div>
-                            <label class="block text-xs font-medium text-slate-500 mb-1">Folder</label>
-                            <select name="folder_id" class="minimal-input w-full" {% if not vault_folders %}disabled{% endif %} required>
-                                {% if vault_folders %}
-                                    {% for f in vault_folders %}
-                                        <option value="{{ f.id }}">{{ f.name }}</option>
-                                    {% endfor %}
-                                {% else %}
-                                    <option value="">Create a folder first</option>
-                                {% endif %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-500 mb-1">File</label>
-                            <input type="file" name="file" class="minimal-input w-full" {% if not vault_folders %}disabled{% endif %} required>
-                            <p class="text-xs text-slate-400 mt-2">PDFs, images, and documents are supported.</p>
-                        </div>
-                        <div class="flex items-center justify-end">
-                            <button type="submit" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium inline-flex items-center justify-center gap-2" {% if not vault_folders %}disabled{% endif %}><span class="iconify text-base" data-icon="solar:upload-bold"></span> Upload</button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Desktop Upload Section -->
-                <div class="hidden lg:block p-4 rounded-2xl border border-slate-200 bg-white">
-                    <div class="flex items-center justify-between mb-3">
-                        <p class="text-sm font-semibold text-slate-900">Upload Document</p>
-                        <span class="text-xs text-slate-500">Stored privately</span>
-                    </div>
-                    <form method="post" action="{{ url_for('vault_file_upload') }}" enctype="multipart/form-data" class="space-y-3">
-                        <div>
-                            <label class="block text-xs font-medium text-slate-500 mb-1">Folder</label>
-                            <select name="folder_id" class="minimal-input w-full" {% if not vault_folders %}disabled{% endif %} required>
-                                {% if vault_folders %}
-                                    {% for f in vault_folders %}
-                                        <option value="{{ f.id }}">{{ f.name }}</option>
-                                    {% endfor %}
-                                {% else %}
-                                    <option value="">Create a folder first</option>
-                                {% endif %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-500 mb-1">File</label>
-                            <input type="file" name="file" class="minimal-input w-full" {% if not vault_folders %}disabled{% endif %} required>
-                            <p class="text-xs text-slate-400 mt-2">PDFs, images, and documents are supported.</p>
-                        </div>
-                        <div class="flex items-center justify-end">
-                            <button type="submit" class="px-4 py-2 rounded-xl minimal-btn minimal-btn-primary text-sm font-medium inline-flex items-center justify-center gap-2" {% if not vault_folders %}disabled{% endif %}><span class="iconify text-base" data-icon="solar:upload-bold"></span> Upload</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <div class="mt-4 p-4 rounded-2xl border border-slate-200 bg-white">
-                <div class="flex items-center justify-between mb-3">
-                    <p class="text-sm font-semibold text-slate-900">Recent Files</p>
-                    <span class="text-xs text-slate-500">Latest uploads</span>
-                </div>
-                <div class="space-y-2">
-                    {% if vault_files %}
-                        {% for vf in vault_files %}
-                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3">
-                                <div class="min-w-0">
-                                    <p class="text-sm font-medium text-slate-900 truncate">{{ vf.original_name }}</p>
-                                    <p class="text-xs text-slate-500 mt-1">Folder: <span class="text-slate-700">{{ vf.folder_name }}</span> · {{ vf.uploaded_at|fmt_dt }}</p>
-                                </div>
-                                <div class="flex items-center gap-2 shrink-0">
-                                    <a href="{{ url_for('vault_file_download', file_id=vf.id) }}" class="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 transition-all inline-flex items-center justify-center gap-2"><span class="iconify text-sm" data-icon="solar:download-bold"></span> Download</a>
-                                    <form method="post" action="{{ url_for('vault_file_delete', file_id=vf.id) }}" onsubmit="return confirm('Delete this file?');">
-                                        <button type="submit" class="px-3 py-2 rounded-xl bg-rose-50 text-rose-700 text-xs font-medium hover:bg-rose-100 transition-all inline-flex items-center justify-center gap-2"><span class="iconify text-sm text-rose-700" data-icon="solar:trash-bin-trash-outline"></span> Delete</button>
-                                    </form>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-600">No files uploaded yet.</div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
-        <div class="p-4 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-700 p-6 text-white">
-            <div class="flex items-center justify-between mb-4">
-                <span class="text-sm font-semibold">Immediate Attention</span>
-                <span class="minimal-badge bg-white/20 text-white">{{ immediate_attention|length }} NEW</span>
-            </div>
-            <div class="space-y-4">
-                {% if immediate_attention %}
-                    {% for p in immediate_attention %}
-                        <div class="p-3 bg-white/10 rounded-xl">
-                            <div class="flex gap-3">
-                                <div class="shrink-0 w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
-                                    <span class="iconify text-xl" data-icon="solar:danger-triangle-bold"></span>
-                                </div>
-                                <div class="min-w-0 flex-1">
-                                    <div class="flex items-start justify-between gap-3">
-                                        <p class="text-sm font-semibold leading-snug break-words">{{ p.heading }}</p>
-                                        <span class="shrink-0 text-[10px] text-white/70">{{ p.date_time|fmt_dt }}</span>
-                                    </div>
-                                    <p class="text-xs text-white/80 mt-1 leading-relaxed overflow-hidden" style="display:-webkit-box;line-clamp:2;-webkit-line-clamp:2;-webkit-box-orient:vertical;">{{ p.body|safe }}</p>
-                                    <div class="flex flex-wrap gap-2 mt-2">
-                                        <span class="minimal-badge bg-white/20 text-white">{{ p.priority }}</span>
-                                        <span class="minimal-badge bg-white/20 text-white">{{ p.news_type }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="p-4 bg-white/10 rounded-xl">
-                        <p class="text-sm text-white/80">No urgent updates right now.</p>
-                    </div>
-                {% endif %}
-            </div>
-            <a class="mt-6 block w-full py-3 rounded-xl bg-white text-indigo-700 text-sm font-medium hover:bg-slate-100 transition-all text-center inline-flex items-center justify-center gap-2" href="{{ url_for('chat_panel') }}"><span class="iconify text-base" data-icon="solar:bell-bold"></span> View All Notifications</a>
-        </div>
-    </div>
-
-    <div class="minimal-card p-6">
-        <div class="flex items-center justify-between mb-6">
-            <div>
-                <h3 class="text-lg font-semibold text-slate-900">Recent Announcements</h3>
-                <p class="text-sm text-slate-500 mt-1">Official updates from faculty and admin</p>
-            </div>
-            <a class="text-sm font-medium text-indigo-600 hover:text-indigo-700" href="{{ url_for('chat_panel') }}">See All →</a>
-        </div>
-
-        <div class="space-y-4">
-            {% if announcements %}
-                {% for p in announcements %}
-                    {% set cat = 'GENERAL' %}
-                    {% if p.priority in ['URGENT','HIGH'] %}
-                        {% set cat = 'URGENT' %}
-                    {% elif p.news_type == 'Event' %}
-                        {% set cat = 'EVENT' %}
-                    {% endif %}
-                    {% set tag_list = (p.tags.split(',') if p.tags else []) %}
-                    <div class="p-4 rounded-xl border {% if cat == 'URGENT' %}border-rose-200 bg-gradient-to-r from-rose-50 to-white{% elif cat == 'EVENT' %}border-amber-200 bg-gradient-to-r from-amber-50 to-white{% else %}border-slate-200 bg-white{% endif %} flex flex-col md:flex-row gap-4 items-start">
-                        <div class="minimal-badge {% if cat == 'URGENT' %}bg-rose-100 text-rose-700{% elif cat == 'EVENT' %}bg-amber-100 text-amber-700{% else %}bg-slate-100 text-slate-700{% endif %} flex items-center gap-1.5">
-                            {% if cat == 'URGENT' %}
-                                <span class="iconify" data-icon="solar:danger-triangle-bold"></span>
-                            {% elif cat == 'EVENT' %}
-                                <span class="iconify" data-icon="solar:calendar-linear"></span>
-                            {% else %}
-                                <span class="iconify" data-icon="solar:info-circle-bold"></span>
-                            {% endif %}
-                            {{ cat }}
-                        </div>
-                        <div class="flex-1">
-                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-1 mb-2">
-                                <h4 class="text-sm font-semibold text-slate-900">{{ p.heading }}</h4>
-                                <span class="text-xs text-slate-400">{{ p.date_time|fmt_dt }}</span>
-                            </div>
-                            <p class="text-sm text-slate-600 leading-relaxed mb-3">{{ p.body|safe }}</p>
-                            <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                                <span class="flex items-center gap-2"><span class="iconify" data-icon="solar:user-linear"></span> {{ p.sender }}</span>
-                                <span class="w-1 h-1 rounded-full bg-slate-300"></span>
-                                <span class="minimal-badge bg-indigo-50 text-indigo-700">{{ p.news_type }}</span>
-                                <span class="minimal-badge bg-slate-100 text-slate-600">{{ p.priority }}</span>
-                                {% if tag_list and tag_list[0].strip() %}
-                                    <span class="minimal-badge bg-indigo-50 text-indigo-700">#{{ tag_list[0].strip() }}</span>
-                                {% endif %}
-                                {% if (tag_list|length) > 1 and tag_list[1].strip() %}
-                                    <span class="minimal-badge bg-slate-100 text-slate-600">#{{ tag_list[1].strip() }}</span>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                {% endfor %}
-            {% else %}
-                <div class="p-6 rounded-xl border border-slate-200 bg-white text-sm text-slate-500">No announcements yet.</div>
-            {% endif %}
-        </div>
-    </div>
+    <div class="hidden minimal-card p-6"></div>
 
 </section>
 

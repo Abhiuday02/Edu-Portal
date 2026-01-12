@@ -1057,6 +1057,12 @@ def ensure_faculty_users_schema(db: sqlite3.Connection) -> None:
     )
 
 
+def ensure_teachers_schema(db: sqlite3.Connection) -> None:
+    cols = {row[1] for row in db.execute("PRAGMA table_info(teachers)").fetchall()}
+    if "faculty_type" not in cols:
+        db.execute("ALTER TABLE teachers ADD COLUMN faculty_type TEXT")
+
+
 def ensure_schedule_schema(db: sqlite3.Connection) -> None:
     db.execute(
         """
@@ -2706,6 +2712,8 @@ def faculty_dashboard():
         return redirect(url_for("faculty_login"))
 
     ensure_faculty_weekly_timetable_schema(db)
+    ensure_faculty_vault_schema(db)
+    ensure_library_resources_faculty_author_schema(db)
     today = datetime.now()
     today_dow = today.weekday()
     today_rows = db.execute(
@@ -2717,6 +2725,54 @@ def faculty_dashboard():
         (int(fid), int(today_dow)),
     ).fetchall()
 
+    vault_recent_files = db.execute(
+        """
+        SELECT vf.*, vfo.name AS folder_name
+        FROM faculty_vault_files vf
+        JOIN faculty_vault_folders vfo ON vfo.id = vf.folder_id
+        WHERE vf.faculty_id = ?
+        ORDER BY datetime(vf.uploaded_at) DESC, vf.id DESC
+        LIMIT 5
+        """,
+        (int(fid),),
+    ).fetchall()
+    vault_recent_folders = db.execute(
+        """
+        SELECT *
+        FROM faculty_vault_folders
+        WHERE faculty_id = ?
+        ORDER BY datetime(created_at) DESC, id DESC
+        LIMIT 5
+        """,
+        (int(fid),),
+    ).fetchall()
+    vault_files_count_row = db.execute(
+        "SELECT COUNT(*) AS c FROM faculty_vault_files WHERE faculty_id = ?",
+        (int(fid),),
+    ).fetchone()
+    vault_folders_count_row = db.execute(
+        "SELECT COUNT(*) AS c FROM faculty_vault_folders WHERE faculty_id = ?",
+        (int(fid),),
+    ).fetchone()
+    vault_files_count = int(vault_files_count_row["c"] or 0) if vault_files_count_row else 0
+    vault_folders_count = int(vault_folders_count_row["c"] or 0) if vault_folders_count_row else 0
+
+    resources_recent = db.execute(
+        """
+        SELECT *
+        FROM library_resources
+        WHERE author_faculty_id = ?
+        ORDER BY datetime(uploaded_at) DESC, id DESC
+        LIMIT 5
+        """,
+        (int(fid),),
+    ).fetchall()
+    resources_count_row = db.execute(
+        "SELECT COUNT(*) AS c FROM library_resources WHERE author_faculty_id = ?",
+        (int(fid),),
+    ).fetchone()
+    resources_count = int(resources_count_row["c"] or 0) if resources_count_row else 0
+
     return render_template(
         "faculty_dashboard_panel.html",
         page_title="Faculty Dashboard",
@@ -2725,6 +2781,12 @@ def faculty_dashboard():
         faculty_user=faculty_user,
         today_dow=today_dow,
         today_rows=today_rows,
+        vault_recent_files=vault_recent_files,
+        vault_recent_folders=vault_recent_folders,
+        vault_files_count=vault_files_count,
+        vault_folders_count=vault_folders_count,
+        resources_recent=resources_recent,
+        resources_count=resources_count,
         error=None,
     )
 
@@ -3734,14 +3796,66 @@ def faculty_profile():
     if not faculty_user:
         session.pop("faculty_user_id", None)
         return redirect(url_for("faculty_login"))
+
+    fp_error = (request.args.get("fp_error") or "").strip() or None
+    fp_success = (request.args.get("fp_success") or "").strip() or None
     return render_template(
         "faculty_profile.html",
         page_title="Profile",
         page_subtitle="Account information",
         active_page="faculty_profile",
         faculty_user=faculty_user,
+        fp_error=fp_error,
+        fp_success=fp_success,
         error=None,
     )
+
+
+@app.post("/faculty/change-password")
+@faculty_approved_required
+def faculty_change_password_post():
+    current_password = request.form.get("current_password") or ""
+    new_password = request.form.get("new_password") or ""
+    confirm_password = request.form.get("confirm_password") or ""
+
+    db = get_db()
+    fid = get_current_faculty_id()
+    faculty_user = db.execute("SELECT * FROM faculty_users WHERE id = ?", (int(fid),)).fetchone()
+    if not faculty_user:
+        session.pop("faculty_user_id", None)
+        return redirect(url_for("faculty_login"))
+
+    if not current_password or not new_password or not confirm_password:
+        return redirect(url_for("faculty_profile", fp_error="Please fill in all fields."))
+
+    if not faculty_user["password_hash"] or not check_password_hash(
+        faculty_user["password_hash"], current_password
+    ):
+        return redirect(url_for("faculty_profile", fp_error="Current password is incorrect."))
+
+    if len(new_password) < 8:
+        return redirect(
+            url_for("faculty_profile", fp_error="New password must be at least 8 characters.")
+        )
+
+    if new_password != confirm_password:
+        return redirect(
+            url_for(
+                "faculty_profile",
+                fp_error="New password and confirmation do not match.",
+            )
+        )
+
+    db.execute(
+        "UPDATE faculty_users SET password_hash = ?, updated_at = ? WHERE id = ?",
+        (
+            generate_password_hash(new_password),
+            datetime.utcnow().isoformat(timespec="seconds"),
+            int(faculty_user["id"]),
+        ),
+    )
+    db.commit()
+    return redirect(url_for("faculty_profile", fp_success="Password updated successfully."))
 
 
 @app.post("/faculty/schedules/weekly/new")
@@ -4542,6 +4656,9 @@ def admin_timetable_bulk_update():
 def admin_teachers():
     db = get_db()
 
+    ensure_faculty_users_schema(db)
+    ensure_teachers_schema(db)
+
     filters = {
         "q": (request.args.get("q") or "").strip(),
         "department": (request.args.get("department") or "").strip(),
@@ -4555,6 +4672,7 @@ def admin_teachers():
     f_designation = filters["designation"].lower()
 
     teachers = []
+    faculty_items = []
     for t in rows:
         t_dict = dict(t)
         hay = " ".join(
@@ -4573,14 +4691,60 @@ def admin_teachers():
         if f_designation and (str(t_dict.get("designation") or "").lower() != f_designation):
             continue
         teachers.append(t)
+        faculty_items.append(
+            {
+                "kind": "teacher",
+                "id": t_dict.get("id"),
+                "name": t_dict.get("name"),
+                "designation": t_dict.get("designation"),
+                "department": t_dict.get("department"),
+                "email": t_dict.get("email"),
+                "phone": t_dict.get("phone"),
+                "status": "APPROVED",
+                "faculty_type": t_dict.get("faculty_type"),
+                "created_at": t_dict.get("created_at"),
+            }
+        )
 
     faculty_rows = db.execute("SELECT * FROM faculty_users ORDER BY datetime(created_at) DESC").fetchall()
+    for f in faculty_rows:
+        f_dict = dict(f)
+        hay = " ".join(
+            [
+                str(f_dict.get("full_name") or ""),
+                str(f_dict.get("designation") or ""),
+                str(f_dict.get("department") or ""),
+                str(f_dict.get("email") or ""),
+                str(f_dict.get("phone") or ""),
+            ]
+        ).lower()
+        if q and q not in hay:
+            continue
+        if f_department and (str(f_dict.get("department") or "").lower() != f_department):
+            continue
+        if f_designation and (str(f_dict.get("designation") or "").lower() != f_designation):
+            continue
+        faculty_items.append(
+            {
+                "kind": "faculty",
+                "id": f_dict.get("id"),
+                "name": f_dict.get("full_name"),
+                "designation": f_dict.get("designation"),
+                "department": f_dict.get("department"),
+                "email": f_dict.get("email"),
+                "phone": f_dict.get("phone"),
+                "status": (f_dict.get("status") or "PENDING"),
+                "faculty_type": f_dict.get("faculty_type"),
+                "created_at": f_dict.get("created_at"),
+            }
+        )
 
     return render_template(
         "admin_teachers.html",
         page_title="Teachers",
         page_subtitle="Manage faculty list",
         active_page="admin_teachers",
+        faculty_items=faculty_items,
         teachers=teachers,
         faculty_users=faculty_rows,
         filters=filters,
@@ -4984,11 +5148,13 @@ def admin_faculty_update(faculty_id: int):
 @admin_login_required
 def admin_teacher_update(teacher_id: int):
     db = get_db()
+    ensure_teachers_schema(db)
     t = db.execute("SELECT * FROM teachers WHERE id = ?", (int(teacher_id),)).fetchone()
     if not t:
         return redirect(url_for("admin_teachers"))
 
     name = (request.form.get("name") or "").strip()
+    faculty_type = (request.form.get("faculty_type") or "").strip() or None
     designation = (request.form.get("designation") or "").strip()
     department = (request.form.get("department") or "").strip()
     email = (request.form.get("email") or "").strip() or None
@@ -4998,8 +5164,8 @@ def admin_teacher_update(teacher_id: int):
         return redirect(url_for("admin_teachers"))
 
     db.execute(
-        "UPDATE teachers SET name = ?, designation = ?, department = ?, email = ?, phone = ? WHERE id = ?",
-        (name, designation, department, email, phone, int(teacher_id)),
+        "UPDATE teachers SET name = ?, faculty_type = ?, designation = ?, department = ?, email = ?, phone = ? WHERE id = ?",
+        (name, faculty_type, designation, department, email, phone, int(teacher_id)),
     )
     db.commit()
     return redirect(url_for("admin_teachers"))
@@ -5281,6 +5447,32 @@ def admin_student_update(student_id: int):
     return redirect(url_for("admin_students"))
 
 
+@app.post("/admin/students/<int:student_id>/reset-password")
+@admin_login_required
+def admin_student_reset_password(student_id: int):
+    new_password = request.form.get("new_password") or ""
+    confirm_password = request.form.get("confirm_password") or ""
+
+    if not new_password or not confirm_password:
+        return redirect(url_for("admin_students"))
+    if new_password != confirm_password:
+        return redirect(url_for("admin_students"))
+    if len(new_password) < 8:
+        return redirect(url_for("admin_students"))
+
+    db = get_db()
+    student = db.execute("SELECT id FROM students WHERE id = ?", (int(student_id),)).fetchone()
+    if not student:
+        return redirect(url_for("admin_students"))
+
+    db.execute(
+        "UPDATE students SET password_hash = ? WHERE id = ?",
+        (generate_password_hash(new_password), int(student_id)),
+    )
+    db.commit()
+    return redirect(url_for("admin_students"))
+
+
 @app.post("/admin/students/bulk-update")
 @admin_login_required
 def admin_students_bulk_update():
@@ -5425,29 +5617,74 @@ def admin_student_delete(student_id: int):
 @admin_login_required
 def admin_teachers_create():
     name = (request.form.get("name") or "").strip()
+    faculty_type = (request.form.get("faculty_type") or "").strip() or None
     designation = (request.form.get("designation") or "").strip()
     department = (request.form.get("department") or "").strip()
     email = (request.form.get("email") or "").strip() or None
     phone = (request.form.get("phone") or "").strip() or None
     if not name or not designation or not department:
         db = get_db()
+        ensure_faculty_users_schema(db)
+        ensure_teachers_schema(db)
         teachers = db.execute("SELECT * FROM teachers ORDER BY name ASC").fetchall()
+        faculty_rows = db.execute(
+            "SELECT * FROM faculty_users ORDER BY datetime(created_at) DESC"
+        ).fetchall()
+
+        faculty_items = []
+        for t in teachers:
+            t_dict = dict(t)
+            faculty_items.append(
+                {
+                    "kind": "teacher",
+                    "id": t_dict.get("id"),
+                    "name": t_dict.get("name"),
+                    "designation": t_dict.get("designation"),
+                    "department": t_dict.get("department"),
+                    "email": t_dict.get("email"),
+                    "phone": t_dict.get("phone"),
+                    "status": "APPROVED",
+                    "faculty_type": t_dict.get("faculty_type"),
+                    "created_at": t_dict.get("created_at"),
+                }
+            )
+
+        for f in faculty_rows:
+            f_dict = dict(f)
+            faculty_items.append(
+                {
+                    "kind": "faculty",
+                    "id": f_dict.get("id"),
+                    "name": f_dict.get("full_name"),
+                    "designation": f_dict.get("designation"),
+                    "department": f_dict.get("department"),
+                    "email": f_dict.get("email"),
+                    "phone": f_dict.get("phone"),
+                    "status": (f_dict.get("status") or "PENDING"),
+                    "faculty_type": f_dict.get("faculty_type"),
+                    "created_at": f_dict.get("created_at"),
+                }
+            )
         return render_template(
             "admin_teachers.html",
             page_title="Teachers",
             page_subtitle="Manage faculty list",
             active_page="admin_teachers",
+            faculty_items=faculty_items,
             teachers=teachers,
+            faculty_users=faculty_rows,
+            filters={"q": "", "department": "", "designation": ""},
             error="Please fill all required teacher fields.",
         )
     db = get_db()
+    ensure_teachers_schema(db)
     now = datetime.utcnow().isoformat(timespec="seconds")
     db.execute(
         """
-        INSERT INTO teachers (name, designation, department, email, phone, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO teachers (name, faculty_type, designation, department, email, phone, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (name, designation, department, email, phone, now),
+        (name, faculty_type, designation, department, email, phone, now),
     )
     db.commit()
     return redirect(url_for("admin_teachers"))
@@ -6137,6 +6374,9 @@ def dashboard():
     sid = get_current_student_id()
     student = db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
 
+    ensure_schedule_schema(db)
+    ensure_group_chat_schema(db)
+
     folders = db.execute(
         "SELECT * FROM vault_folders WHERE student_id = ? ORDER BY datetime(created_at) DESC",
         (sid,),
@@ -6153,22 +6393,33 @@ def dashboard():
         (sid,),
     ).fetchall()
 
-    immediate_attention = db.execute(
+    schedule_id = int(student["schedule_id"] or 1) if student and ("schedule_id" in student.keys()) else 1
+    today = datetime.now()
+    today_dow = today.weekday()
+    today_schedule = db.execute(
         """
-        SELECT * FROM news_posts
-        WHERE priority IN ('URGENT','HIGH')
-        ORDER BY datetime(date_time) DESC
-        LIMIT 2
-        """
+        SELECT * FROM weekly_timetable
+        WHERE schedule_id = ? AND day_of_week = ?
+        ORDER BY time(start_time) ASC
+        """,
+        (int(schedule_id), int(today_dow)),
     ).fetchall()
 
-    announcements = db.execute(
+    chat_recent = db.execute(
         """
-        SELECT * FROM news_posts
-        WHERE datetime(date_time) >= datetime('now', '-7 days')
-        ORDER BY datetime(date_time) DESC
+        SELECT * FROM group_chat_messages
+        WHERE is_deleted = 0
+        ORDER BY id DESC
+        LIMIT 5
+        """,
+    ).fetchall()
+
+    resources_recent = db.execute(
+        """
+        SELECT * FROM library_resources
+        ORDER BY datetime(uploaded_at) DESC, id DESC
         LIMIT 6
-        """
+        """,
     ).fetchall()
     return render_template(
         "dashboard.html",
@@ -6178,8 +6429,10 @@ def dashboard():
         student=student,
         vault_folders=folders,
         vault_files=files,
-        immediate_attention=immediate_attention,
-        announcements=announcements,
+        today_dow=today_dow,
+        today_schedule=today_schedule,
+        chat_recent=chat_recent,
+        resources_recent=resources_recent,
     )
 
 
@@ -6190,6 +6443,8 @@ def teachers():
     sid = get_current_student_id()
     student = db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
 
+    ensure_faculty_users_schema(db)
+
     filters = {
         "q": (request.args.get("q") or "").strip(),
         "department": (request.args.get("department") or "").strip(),
@@ -6197,13 +6452,60 @@ def teachers():
     }
 
     rows = db.execute("SELECT * FROM teachers ORDER BY name ASC").fetchall()
+    faculty_rows = db.execute(
+        """
+        SELECT * FROM faculty_users
+        WHERE UPPER(status) = 'APPROVED'
+        ORDER BY full_name ASC
+        """
+    ).fetchall()
+
+    combined: list[dict] = []
+    seen_keys: set[str] = set()
+
+    for t in rows:
+        t_dict = dict(t)
+        key = (str(t_dict.get("email") or "").strip().lower() or None) or (
+            f"{(t_dict.get('name') or '').strip().lower()}|{(t_dict.get('phone') or '').strip()}"
+        )
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        combined.append(
+            {
+                "name": t_dict.get("name"),
+                "designation": t_dict.get("designation"),
+                "department": t_dict.get("department"),
+                "email": t_dict.get("email"),
+                "phone": t_dict.get("phone"),
+            }
+        )
+
+    for f in faculty_rows:
+        f_dict = dict(f)
+        key = (str(f_dict.get("email") or "").strip().lower() or None) or (
+            f"{(f_dict.get('full_name') or '').strip().lower()}|{(f_dict.get('phone') or '').strip()}"
+        )
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        combined.append(
+            {
+                "name": f_dict.get("full_name"),
+                "designation": f_dict.get("designation"),
+                "department": f_dict.get("department"),
+                "email": f_dict.get("email"),
+                "phone": f_dict.get("phone"),
+            }
+        )
+
+    combined.sort(key=lambda x: (str(x.get("name") or "").lower(), str(x.get("department") or "").lower()))
     q = filters["q"].lower()
     f_department = filters["department"].lower()
     f_designation = filters["designation"].lower()
 
     resolved = []
-    for t in rows:
-        t_dict = dict(t)
+    for t_dict in combined:
         hay = " ".join(
             [
                 str(t_dict.get("name") or ""),
@@ -6219,7 +6521,7 @@ def teachers():
             continue
         if f_designation and (str(t_dict.get("designation") or "").lower() != f_designation):
             continue
-        resolved.append(t)
+        resolved.append(t_dict)
 
     return render_template(
         "teachers.html",

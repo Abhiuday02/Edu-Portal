@@ -93,20 +93,102 @@
         </div>
     </div>
 
-    <div class="minimal-card p-4 sm:p-5">
-        <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Signed In As</p>
-        <p class="mt-2 text-sm font-semibold text-slate-900">{{ faculty_user.full_name }}</p>
-        <p class="text-xs text-slate-500">{{ faculty_user.designation }} · {{ faculty_user.department }}</p>
-        <a href="{{ url_for('faculty_profile') }}" class="mt-4 px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center justify-center gap-2 w-full">Open Profile</a>
-    </div>
+    <div class="space-y-3 sm:space-y-4">
+        <div class="minimal-card p-4 sm:p-5">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Vault</p>
+                    <p class="text-sm text-slate-600 mt-1">Recent changes in your private storage.</p>
+                </div>
+                <a href="{{ url_for('faculty_vault') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center gap-2 shrink-0">
+                    <span class="iconify text-base text-indigo-600" data-icon="solar:folder-with-files-outline"></span>
+                    Open
+                </a>
+            </div>
 
-    <div class="minimal-card p-4 sm:p-5">
-        <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Quick Links</p>
-        <div class="mt-4 flex flex-wrap gap-2">
-            <a href="{{ url_for('faculty_chat_panel') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:chat-round-dots-outline"></span> Chat</a>
-            <a href="{{ url_for('faculty_schedules') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:calendar-outline"></span> Schedules</a>
-            <a href="{{ url_for('faculty_resources') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:book-2-outline"></span> Resources</a>
-            <a href="{{ url_for('faculty_vault') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center gap-2"><span class="iconify text-base text-indigo-600" data-icon="solar:folder-with-files-outline"></span> Vault</a>
+            <div class="mt-4 grid grid-cols-2 gap-2">
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <p class="text-xs text-slate-500">Folders</p>
+                    <p class="mt-1 text-lg font-semibold text-slate-900">{{ vault_folders_count }}</p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <p class="text-xs text-slate-500">Files</p>
+                    <p class="mt-1 text-lg font-semibold text-slate-900">{{ vault_files_count }}</p>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Recently Modified</p>
+                <div class="mt-2 space-y-2">
+                    {% if vault_recent_files and vault_recent_files|length > 0 %}
+                        {% for f in vault_recent_files %}
+                            <div class="p-3 rounded-xl border border-slate-200 bg-white">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-semibold text-slate-900 truncate">{{ f.original_name }}</p>
+                                        <p class="text-xs text-slate-500 mt-1 truncate">{{ f.folder_name }}</p>
+                                    </div>
+                                    <a href="{{ url_for('faculty_vault_file_download', file_id=f.id) }}" class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-medium hover:bg-slate-200 transition-all inline-flex items-center gap-2 shrink-0">
+                                        <span class="iconify text-sm text-indigo-600" data-icon="solar:download-outline"></span>
+                                        Download
+                                    </a>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% elif vault_recent_folders and vault_recent_folders|length > 0 %}
+                        {% for fo in vault_recent_folders %}
+                            <div class="p-3 rounded-xl border border-slate-200 bg-white">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-semibold text-slate-900 truncate">{{ fo.name }}</p>
+                                        <p class="text-xs text-slate-500 mt-1">Folder created</p>
+                                    </div>
+                                    <a href="{{ url_for('faculty_vault', folder_id=fo.id) }}" class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-medium hover:bg-slate-200 transition-all inline-flex items-center gap-2 shrink-0">
+                                        <span class="iconify text-sm text-indigo-600" data-icon="solar:arrow-right-outline"></span>
+                                        Open
+                                    </a>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-600">No recent vault activity.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="minimal-card p-4 sm:p-5">
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Resources</p>
+                    <p class="text-sm text-slate-600 mt-1">Quick glance of your recent uploads.</p>
+                </div>
+                <a href="{{ url_for('faculty_resources') }}" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all inline-flex items-center gap-2 shrink-0">
+                    <span class="iconify text-base text-indigo-600" data-icon="solar:book-2-outline"></span>
+                    Open
+                </a>
+            </div>
+
+            <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p class="text-xs text-slate-500">Total uploads</p>
+                <p class="mt-1 text-lg font-semibold text-slate-900">{{ resources_count }}</p>
+            </div>
+
+            <div class="mt-4">
+                <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Recent</p>
+                <div class="mt-2 space-y-2">
+                    {% if resources_recent and resources_recent|length > 0 %}
+                        {% for r in resources_recent %}
+                            <div class="p-3 rounded-xl border border-slate-200 bg-white">
+                                <p class="text-sm font-semibold text-slate-900">{{ r.heading }}</p>
+                                <p class="text-xs text-slate-500 mt-1 line-clamp-2">{{ r.description }}</p>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-600">No resources uploaded yet.</div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
 </div>
