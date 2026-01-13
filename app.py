@@ -8,6 +8,7 @@ import os
 import shutil
 import sqlite3
 import calendar
+import time
 from urllib.parse import quote
 import uuid
 import json
@@ -1592,7 +1593,44 @@ def close_db(exception):
 
 
 def init_db() -> None:
-    db = sqlite3.connect(DB_PATH)
+    try:
+        if DB_PATH.exists() and DB_PATH.stat().st_size > 0:
+            return
+    except Exception:
+        pass
+
+    lock_path = DB_PATH.with_suffix(DB_PATH.suffix + ".init.lock")
+
+    try:
+        if lock_path.exists():
+            try:
+                age = time.time() - lock_path.stat().st_mtime
+                if age > 120 and (not DB_PATH.exists() or DB_PATH.stat().st_size == 0):
+                    lock_path.unlink(missing_ok=True)
+                else:
+                    return
+            except Exception:
+                return
+
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        try:
+            os.write(fd, str(os.getpid()).encode("utf-8"))
+        finally:
+            os.close(fd)
+    except FileExistsError:
+        return
+    except Exception:
+        return
+
+    try:
+        db = sqlite3.connect(DB_PATH)
+    except Exception:
+        try:
+            lock_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise
+
     try:
         db.execute("PRAGMA foreign_keys = ON;")
 
@@ -2800,7 +2838,13 @@ def init_db() -> None:
 
         db.commit()
     finally:
-        db.close()
+        try:
+            db.close()
+        finally:
+            try:
+                lock_path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
 
 @app.context_processor
