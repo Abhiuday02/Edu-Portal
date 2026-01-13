@@ -803,24 +803,62 @@
             (window.matchMedia && window.matchMedia('(max-width: 640px)').matches)
         );
 
+        let sending = false;
+        async function ajaxSend() {
+            if (!formEl || sending) return;
+            const actionUrl = formEl.getAttribute('action');
+            if (!actionUrl) {
+                formEl.submit();
+                return;
+            }
+
+            const text = (msgInput ? (msgInput.value || '').trim() : '');
+            const file = attachInput && attachInput.files ? attachInput.files[0] : null;
+            if (!text && !file) return;
+
+            sending = true;
+            try {
+                const fd = new FormData(formEl);
+                const res = await fetch(actionUrl, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json' },
+                    body: fd
+                });
+                const data = await res.json().catch(() => null);
+                if (!res.ok || !data || !data.ok) {
+                    window.alert((data && data.error) ? data.error : 'Failed to send message');
+                    return;
+                }
+
+                if (typeof data.revision !== 'undefined') setStoredRevision(data.revision);
+
+                if (msgInput) msgInput.value = '';
+                if (attachInput) attachInput.value = '';
+                if (attachLabel) {
+                    attachLabel.classList.add('hidden');
+                    attachLabel.textContent = '';
+                }
+            } catch (e) {
+                window.alert('Failed to send message');
+            } finally {
+                sending = false;
+            }
+        }
+
         if (formEl && msgInput) {
             msgInput.addEventListener('keydown', (e) => {
                 if (e.key !== 'Enter') return;
                 if (isMobile) return;
                 if (e.shiftKey) return;
                 e.preventDefault();
-                if (typeof formEl.requestSubmit === 'function') {
-                    formEl.requestSubmit();
-                } else {
-                    formEl.submit();
-                }
+                ajaxSend();
             });
         }
 
         if (formEl) {
-            formEl.addEventListener('submit', () => {
-                // Let server handle; polling will pick it up.
-                // If you later want full AJAX send, we can do it.
+            formEl.addEventListener('submit', (e) => {
+                e.preventDefault();
+                ajaxSend();
             });
         }
 
