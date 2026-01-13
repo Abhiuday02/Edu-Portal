@@ -17,7 +17,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import re
 
-from flask_socketio import SocketIO, join_room, disconnect
+from flask_socketio import SocketIO, join_room, disconnect, emit
 from pywebpush import webpush, WebPushException
 
 app = Flask(__name__)
@@ -107,6 +107,46 @@ def ensure_group_chat_schema(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE group_chat_messages ADD COLUMN edited_by_type TEXT")
     if "edited_by_id" not in cols:
         db.execute("ALTER TABLE group_chat_messages ADD COLUMN edited_by_id INTEGER")
+
+
+def ensure_chat_meta_schema(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chat_meta (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            revision INTEGER NOT NULL,
+            updated_at TEXT
+        )
+        """
+    )
+    row = db.execute("SELECT id FROM chat_meta WHERE id = 1").fetchone()
+    if not row:
+        now = datetime.now().isoformat(timespec="seconds")
+        db.execute(
+            "INSERT INTO chat_meta (id, revision, updated_at) VALUES (1, 0, ?)",
+            (now,),
+        )
+        db.commit()
+
+
+def get_chat_revision(db: sqlite3.Connection) -> int:
+    ensure_chat_meta_schema(db)
+    row = db.execute("SELECT revision FROM chat_meta WHERE id = 1").fetchone()
+    try:
+        return int(row[0]) if row else 0
+    except Exception:
+        return 0
+
+
+def bump_chat_revision(db: sqlite3.Connection) -> int:
+    ensure_chat_meta_schema(db)
+    now = datetime.now().isoformat(timespec="seconds")
+    db.execute(
+        "UPDATE chat_meta SET revision = revision + 1, updated_at = ? WHERE id = 1",
+        (now,),
+    )
+    db.commit()
+    return get_chat_revision(db)
 
 
 def ensure_push_schema(db: sqlite3.Connection) -> None:
@@ -385,6 +425,40 @@ def socket_connect():
         disconnect()
         return
     join_room(CHAT_ROOM)
+
+
+@socketio.on("chat:sync")
+def socket_chat_sync(payload=None):
+    db = get_db()
+    ensure_group_chat_schema(db)
+    actor = _get_actor_from_session(db)
+    if not actor:
+        disconnect()
+        return
+
+    body = payload or {}
+    try:
+        client_rev = int(body.get("revision") or 0)
+    except Exception:
+        client_rev = 0
+
+    server_rev = get_chat_revision(db)
+    if client_rev == server_rev:
+        emit("chat:rev", {"revision": int(server_rev)})
+        return
+
+    rows, oldest_id, has_more = _chat_fetch_recent(db, 15)
+    items = build_group_chat_items(rows)
+    items = _chat_items_to_json(items)
+    emit(
+        "chat:snapshot",
+        {
+            "revision": int(server_rev),
+            "items": items,
+            "oldest_id": int(oldest_id) if oldest_id else None,
+            "has_more": bool(has_more),
+        },
+    )
 
 
 def fmt_chat_time(value: str) -> str:
@@ -875,19 +949,34 @@ def _chat_can_moderate(db: sqlite3.Connection) -> bool:
 
 def _chat_base_context(db: sqlite3.Connection) -> dict:
     actor = get_chat_actor(db)
+    revision = get_chat_revision(db)
     return {
         "chat_actor": actor,
         "chat_items": [],
         "chat_send_url": url_for("chat_send"),
         "chat_poll_url": url_for("chat_poll"),
         "chat_older_url": url_for("chat_older"),
+        "chat_snapshot_url": url_for("chat_snapshot"),
         "chat_oldest_id": None,
         "chat_has_more": False,
+        "chat_revision": revision,
         "chat_profile_url_template": "/chat/profile/__TYPE__/__ID__",
         "chat_delete_url_template": "/chat/messages/__ID__/delete",
         "chat_edit_url_template": "/chat/messages/__ID__/edit",
         "chat_can_moderate": _chat_can_moderate(db),
     }
+
+
+def _chat_items_to_json(items: list[dict]) -> list[dict]:
+    for it in items:
+        if it.get("kind") != "msg":
+            continue
+        m = it.get("msg")
+        if not m:
+            continue
+        ap = m.get("attachment_path")
+        m["attachment_url"] = url_for("static", filename=ap) if ap else None
+    return items
 
 
 def _chat_fetch_recent(db: sqlite3.Connection, limit: int) -> tuple[list[sqlite3.Row], int | None, bool]:
@@ -1025,6 +1114,8 @@ def chat_older():
     if not actor:
         return jsonify({"ok": False, "error": "Not logged in"}), 401
 
+    revision = get_chat_revision(db)
+
     before_id_raw = (request.args.get("before_id") or "").strip()
     try:
         before_id = int(before_id_raw)
@@ -1078,7 +1169,37 @@ def chat_older():
         ap = m.get("attachment_path")
         m["attachment_url"] = url_for("static", filename=ap) if ap else None
 
-    return jsonify({"ok": True, "items": items, "has_more": has_more, "oldest_id": oldest_id})
+    return jsonify({"ok": True, "revision": int(revision), "items": items, "has_more": has_more, "oldest_id": oldest_id})
+
+
+@app.get("/chat/snapshot")
+def chat_snapshot():
+    db = get_db()
+    ensure_group_chat_schema(db)
+    actor = _require_chat_actor(db)
+    if not actor:
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+
+    limit = 15
+    try:
+        limit = int((request.args.get("limit") or "").strip() or 15)
+    except Exception:
+        limit = 15
+    limit = max(5, min(limit, 80))
+
+    rev = get_chat_revision(db)
+    rows, oldest_id, has_more = _chat_fetch_recent(db, limit)
+    items = build_group_chat_items(rows)
+    items = _chat_items_to_json(items)
+    return jsonify(
+        {
+            "ok": True,
+            "revision": int(rev),
+            "items": items,
+            "oldest_id": int(oldest_id) if oldest_id else None,
+            "has_more": bool(has_more),
+        }
+    )
 
 
 @app.post("/chat/send")
@@ -1120,6 +1241,9 @@ def chat_send():
     )
     db.commit()
 
+    revision = bump_chat_revision(db)
+    msg = None
+
     msg_id = int(db.execute("SELECT last_insert_rowid() AS id").fetchone()["id"])
     row = db.execute(
         "SELECT * FROM group_chat_messages WHERE id = ?",
@@ -1127,7 +1251,7 @@ def chat_send():
     ).fetchone()
     if row:
         msg = _chat_row_to_msg(row)
-        socketio.emit("chat:new", {"msg": msg}, room=CHAT_ROOM)
+        socketio.emit("chat:new", {"msg": msg, "revision": int(revision)}, room=CHAT_ROOM)
 
         notif_body = msg.get("message") or "Attachment"
         payload = {
@@ -1141,7 +1265,7 @@ def chat_send():
 
     wants_json = "application/json" in (request.headers.get("Accept") or "")
     if wants_json:
-        return jsonify({"ok": True, "msg": msg if row else None})
+        return jsonify({"ok": True, "revision": int(revision), "msg": msg if row else None})
     return redirect(request.referrer or url_for("chat_panel"))
 
 
@@ -1152,6 +1276,8 @@ def chat_poll():
     actor = _require_chat_actor(db)
     if not actor:
         return jsonify({"ok": False, "error": "Not logged in"}), 401
+
+    revision = get_chat_revision(db)
 
     after_id_raw = (request.args.get("after_id") or "").strip()
     try:
@@ -1200,7 +1326,7 @@ def chat_poll():
         ap = m.get("attachment_path")
         m["attachment_url"] = url_for("static", filename=ap) if ap else None
 
-    return jsonify({"ok": True, "items": items})
+    return jsonify({"ok": True, "revision": int(revision), "items": items})
 
 
 @app.post("/chat/messages/<int:message_id>/edit")
@@ -1240,13 +1366,15 @@ def chat_edit_message(message_id: int):
     )
     db.commit()
 
+    revision = bump_chat_revision(db)
+
     row2 = db.execute(
         "SELECT * FROM group_chat_messages WHERE id = ? AND is_deleted = 0",
         (int(message_id),),
     ).fetchone()
     msg = _chat_row_to_msg(row2) if row2 else None
     if msg:
-        socketio.emit("chat:edited", {"msg": msg}, room=CHAT_ROOM)
+        socketio.emit("chat:edited", {"msg": msg, "revision": int(revision)}, room=CHAT_ROOM)
         payload = {
             "kind": "chat:edited",
             "title": "Message edited",
@@ -1256,12 +1384,16 @@ def chat_edit_message(message_id: int):
         }
         _push_broadcast_chat(db, actor, payload)
 
-    return jsonify({
-        "ok": True,
-        "message": message,
-        "edited_at": now,
-        "edited_label": fmt_chat_time(now),
-    })
+    return jsonify(
+        {
+            "ok": True,
+            "revision": int(revision),
+            "msg": msg,
+            "message": message,
+            "edited_at": now,
+            "edited_label": fmt_chat_time(now),
+        }
+    )
 
 
 @app.post("/chat/messages/<int:message_id>/delete")
@@ -1288,7 +1420,9 @@ def chat_delete_message(message_id: int):
     db.execute("UPDATE group_chat_messages SET is_deleted = 1 WHERE id = ?", (int(message_id),))
     db.commit()
 
-    socketio.emit("chat:deleted", {"id": int(message_id)}, room=CHAT_ROOM)
+    revision = bump_chat_revision(db)
+
+    socketio.emit("chat:deleted", {"id": int(message_id), "revision": int(revision)}, room=CHAT_ROOM)
     payload = {
         "kind": "chat:deleted",
         "title": "Message deleted",
@@ -1297,7 +1431,7 @@ def chat_delete_message(message_id: int):
         "message_id": int(message_id),
     }
     _push_broadcast_chat(db, actor, payload)
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "revision": int(revision)})
 
 
 @app.get("/chat/profile/<actor_type>/<int:actor_id>")

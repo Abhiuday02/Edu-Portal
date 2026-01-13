@@ -195,8 +195,10 @@
     'my_actor': chat_actor,
     'poll_url': chat_poll_url,
     'older_url': chat_older_url,
+    'snapshot_url': chat_snapshot_url,
     'oldest_id': chat_oldest_id,
     'has_more': chat_has_more,
+    'revision': chat_revision,
     'profile_url_template': chat_profile_url_template,
     'delete_url_template': chat_delete_url_template,
     'edit_url_template': chat_edit_url_template,
@@ -229,6 +231,30 @@
             init = null;
         }
 
+        function applySnapshot(payload) {
+            const items = (payload && payload.items) ? payload.items : [];
+            const rev = payload && payload.revision;
+            if (typeof rev !== 'undefined') setStoredRevision(rev);
+
+            hasMore = !!(payload && payload.has_more);
+            oldestId = (payload && payload.oldest_id) ? payload.oldest_id : null;
+
+            listEl.innerHTML = '';
+            items.forEach((it) => {
+                if (!it) return;
+                if (it.kind === 'date') {
+                    listEl.appendChild(renderDateSeparator(it.date_key, it.label || it.date_key || ''));
+                    return;
+                }
+                const m = it.msg;
+                if (!m) return;
+                maybeInsertDateSeparator(m.date_key, m.date_label);
+                listEl.appendChild(renderMessage(m));
+            });
+
+            scrollToBottom();
+        }
+
         function upsertMessage(msg) {
             if (!msg || !msg.id) return;
             const existing = listEl.querySelector(`[data-gc-message][data-id="${CSS.escape(String(msg.id))}"]`);
@@ -255,11 +281,25 @@
 
         const pollUrl = init.poll_url;
         const olderUrl = init.older_url;
+        const snapshotUrl = init.snapshot_url;
         const profileUrlTemplate = init.profile_url_template;
         const deleteUrlTemplate = init.delete_url_template;
         const editUrlTemplate = init.edit_url_template;
         const myActor = init.my_actor;
         const canModerate = !!init.can_moderate;
+
+        const REV_KEY = 'eduportal:groupchat:rev';
+        function getStoredRevision() {
+            try { return Number(window.localStorage.getItem(REV_KEY) || '0') || 0; } catch { return 0; }
+        }
+        function setStoredRevision(rev) {
+            const n = Number(rev || 0) || 0;
+            try { window.localStorage.setItem(REV_KEY, String(n)); } catch {}
+            currentRevision = n;
+        }
+
+        let currentRevision = Number(init.revision || 0) || 0;
+        if (currentRevision) setStoredRevision(currentRevision);
 
         let oldestId = init.oldest_id;
         let hasMore = !!init.has_more;
@@ -684,12 +724,23 @@
                 const socket = window.io({ transports: ['websocket', 'polling'] });
 
                 socket.on('connect', () => {
-                    // connected
+                    const localRev = getStoredRevision() || currentRevision || 0;
+                    socket.emit('chat:sync', { revision: Number(localRev) || 0 });
+                });
+
+                socket.on('chat:rev', (payload) => {
+                    const rev = payload && payload.revision;
+                    if (typeof rev !== 'undefined') setStoredRevision(rev);
+                });
+
+                socket.on('chat:snapshot', (payload) => {
+                    applySnapshot(payload);
                 });
 
                 socket.on('chat:new', (payload) => {
                     const msg = payload && payload.msg;
                     if (!msg) return;
+                    if (payload && typeof payload.revision !== 'undefined') setStoredRevision(payload.revision);
                     upsertMessage(msg);
                     if (!prefersReducedMotion && document.visibilityState !== 'visible') {
                         // no-op
@@ -699,12 +750,14 @@
                 socket.on('chat:edited', (payload) => {
                     const msg = payload && payload.msg;
                     if (!msg) return;
+                    if (payload && typeof payload.revision !== 'undefined') setStoredRevision(payload.revision);
                     upsertMessage(msg);
                 });
 
                 socket.on('chat:deleted', (payload) => {
                     const id = payload && payload.id;
                     removeMessage(id);
+                    if (payload && typeof payload.revision !== 'undefined') setStoredRevision(payload.revision);
                 });
             } catch (e) {
                 // fall back to polling
