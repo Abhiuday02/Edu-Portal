@@ -1,2 +1,10 @@
 Flask==3.0.3
 waitress==2.1.2
+Flask-SocketIO==5.3.6
+eventlet==0.33.3
+pywebpush==1.14.0
+
+cffi==1.17.1
+wheel==0.42.0
+
+cryptography==42.0.8

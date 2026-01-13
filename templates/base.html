@@ -350,6 +350,11 @@
                     <span class="iconify text-slate-400 mr-2" data-icon="solar:magnifer-linear"></span>
                     <input type="text" placeholder="Search resources, assignments..." class="bg-transparent outline-none text-sm w-64 placeholder:text-slate-400">
                 </div>
+                {% if active_page == 'chat' %}
+                    <button type="button" class="w-10 h-10 rounded-xl bg-white/70 border border-slate-200 text-slate-700 hover:bg-white transition-all inline-flex items-center justify-center" data-gc-push-btn title="Notifications">
+                        <span class="iconify text-xl" data-gc-push-icon data-icon="solar:bell-outline"></span>
+                    </button>
+                {% endif %}
                 <a class="minimal-avatar w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-slate-700 text-sm font-medium cursor-pointer border border-slate-200" href="{{ url_for('profile') }}">{{ (student.name.split(' ')[0][0] ~ student.name.split(' ')[-1][0]) if student and student.name and (student.name.split(' ')|length) > 1 else 'AJ' }}</a>
             </div>
         </header>
@@ -399,6 +404,7 @@
     </main>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
     {% block scripts %}{% endblock %}
 </body>
 

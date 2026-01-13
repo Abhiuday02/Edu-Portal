@@ -7,6 +7,46 @@
 </div>
 {% endif %}
 
+{% if success %}
+<div class="mb-4 admin-card border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+    {{ success }}
+</div>
+{% endif %}
+
+<div id="adminFacultyPasswordBottomSheet" class="fixed inset-0 z-[70] pointer-events-none opacity-0 transition-opacity duration-300">
+    <div class="absolute inset-0 bg-slate-900/60 pointer-events-none" id="adminFacultyPasswordSheetBackdrop"></div>
+    <div id="adminFacultyPasswordSheet" class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl transform translate-y-full transition-transform duration-300 pointer-events-auto max-h-[85vh] overflow-hidden">
+        <div class="flex justify-center py-3" id="adminFacultyPasswordSheetHandle">
+            <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+        </div>
+        <div class="px-6 pb-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-slate-900">Reset Faculty Password</h3>
+                <button id="adminFacultyPasswordSheetClose" type="button" class="p-2 rounded-xl hover:bg-slate-100 transition-colors">
+                    <span class="iconify text-xl text-slate-600" data-icon="solar:close-circle-bold"></span>
+                </button>
+            </div>
+            <p class="text-sm text-slate-500 mt-1">Set a new password for this faculty account.</p>
+        </div>
+        <div class="px-6 pb-6 overflow-y-auto" style="max-height: calc(85vh - 140px);">
+            <form id="adminFacultyPasswordForm" method="post" action="" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">New Password</label>
+                    <input name="new_password" type="password" class="admin-input w-full" minlength="8" required />
+                    <p class="text-xs text-slate-400 mt-2">Minimum 8 characters.</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold tracking-wide text-slate-500 uppercase mb-2">Confirm Password</label>
+                    <input name="confirm_password" type="password" class="admin-input w-full" minlength="8" required />
+                </div>
+                <div class="flex items-center justify-end gap-2">
+                    <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:key-bold"></span> Reset Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div data-admin-teacher-edit-backdrop class="fixed inset-0 bg-slate-900/40 opacity-0 pointer-events-none transition-opacity z-40"></div>
 
 <div data-admin-faculty-edit-backdrop class="fixed inset-0 bg-slate-900/40 opacity-0 pointer-events-none transition-opacity z-40"></div>
@@ -200,7 +240,7 @@
     </div>
 </div>
 
-<div class="admin-card p-6 mb-6">
+<!-- <div class="admin-card p-6 mb-6" style="display: none;">
     <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold text-slate-900">Add Teacher</h2>
         <span class="text-xs text-slate-500">Faculty list</span>
@@ -217,7 +257,7 @@
             <button type="submit" class="admin-btn admin-btn-primary inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:add-square-bold"></span> Add</button>
         </div>
     </form>
-</div>
+</div> -->
 
 <div class="admin-card overflow-x-hidden overflow-y-visible">
     <div class="overflow-x-auto">
@@ -289,6 +329,11 @@
                                                             <span class="iconify text-base" data-icon="solar:folder-with-files-outline"></span>
                                                             Vault
                                                         </a>
+
+                                                        <button type="button" class="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm text-slate-700 inline-flex items-center gap-2" data-admin-faculty-password-open data-faculty-id="{{ item.id }}">
+                                                            <span class="iconify text-base" data-icon="solar:key-bold"></span>
+                                                            Reset Password
+                                                        </button>
 
                                                         <button
                                                             type="button"
@@ -434,6 +479,138 @@
 
         window.addEventListener('resize', close);
         window.addEventListener('scroll', close, true);
+    })();
+
+    (function () {
+        const sheetRoot = document.getElementById('adminFacultyPasswordBottomSheet');
+        const backdrop = document.getElementById('adminFacultyPasswordSheetBackdrop');
+        const sheet = document.getElementById('adminFacultyPasswordSheet');
+        const closeBtn = document.getElementById('adminFacultyPasswordSheetClose');
+        const handle = document.getElementById('adminFacultyPasswordSheetHandle');
+        const form = document.getElementById('adminFacultyPasswordForm');
+        const openBtns = Array.from(document.querySelectorAll('[data-admin-faculty-password-open]'));
+
+        if (!sheetRoot || !backdrop || !sheet || !closeBtn || !handle || !form || !openBtns.length) {
+            return;
+        }
+
+        if (sheetRoot.parentElement !== document.body) {
+            document.body.appendChild(sheetRoot);
+        }
+
+        let scrollLockY = 0;
+        let isOpen = false;
+
+        function lockScroll() {
+            scrollLockY = window.scrollY || 0;
+            document.body.style.position = 'fixed';
+            document.body.style.top = `-${scrollLockY}px`;
+            document.body.style.left = '0';
+            document.body.style.right = '0';
+            document.body.style.width = '100%';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function unlockScroll() {
+            document.body.style.position = '';
+            const top = document.body.style.top;
+            document.body.style.top = '';
+            document.body.style.left = '';
+            document.body.style.right = '';
+            document.body.style.width = '';
+            document.body.style.overflow = '';
+            const y = top ? Math.abs(parseInt(top, 10)) : scrollLockY;
+            window.scrollTo(0, Number.isFinite(y) ? y : 0);
+        }
+
+        function open(fid) {
+            if (!fid) return;
+            form.setAttribute('action', `/admin/faculty/${fid}/reset-password`);
+            form.querySelectorAll('input[type="password"]').forEach((i) => { i.value = ''; });
+
+            lockScroll();
+            isOpen = true;
+            sheetRoot.classList.remove('opacity-0', 'pointer-events-none');
+            sheetRoot.classList.add('opacity-100');
+            sheet.classList.remove('translate-y-full');
+            backdrop.classList.remove('pointer-events-none');
+            backdrop.classList.add('pointer-events-auto');
+        }
+
+        function close() {
+            sheetRoot.classList.add('opacity-0', 'pointer-events-none');
+            sheetRoot.classList.remove('opacity-100');
+            sheet.classList.add('translate-y-full');
+            backdrop.classList.add('pointer-events-none');
+            backdrop.classList.remove('pointer-events-auto');
+            sheet.style.transform = '';
+            if (isOpen) {
+                unlockScroll();
+            }
+            isOpen = false;
+        }
+
+        openBtns.forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const fid = btn.getAttribute('data-faculty-id');
+                open(fid);
+            });
+        });
+
+        closeBtn.addEventListener('click', close);
+        backdrop.addEventListener('click', close);
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                close();
+            }
+        });
+
+        let startY = 0;
+        let isDragging = false;
+        let dragStartTime = 0;
+
+        function onStart(e) {
+            const t = e.touches ? e.touches[0] : e;
+            startY = t.clientY;
+            isDragging = true;
+            dragStartTime = Date.now();
+            sheet.style.transition = 'none';
+        }
+
+        function onMove(e) {
+            if (!isDragging) return;
+            const t = e.touches ? e.touches[0] : e;
+            const dy = t.clientY - startY;
+            if (dy > 0) {
+                sheet.style.transform = `translateY(${dy}px)`;
+            }
+        }
+
+        function onEnd(e) {
+            if (!isDragging) return;
+            isDragging = false;
+            sheet.style.transition = '';
+
+            const endY = (e.changedTouches ? e.changedTouches[0] : e).clientY;
+            const dy = endY - startY;
+            const dt = Date.now() - dragStartTime;
+
+            if (dy > 120 || (dy > 60 && dt < 250)) {
+                sheet.style.transform = '';
+                close();
+                return;
+            }
+            sheet.style.transform = '';
+        }
+
+        handle.addEventListener('touchstart', onStart, { passive: true });
+        handle.addEventListener('touchmove', onMove, { passive: true });
+        handle.addEventListener('touchend', onEnd, { passive: true });
+        handle.addEventListener('mousedown', onStart);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onEnd);
     })();
 
     (function () {

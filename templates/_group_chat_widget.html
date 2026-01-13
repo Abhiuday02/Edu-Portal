@@ -21,6 +21,11 @@
     }
     [data-gc-composer] :where(textarea.minimal-input) {
         resize: none;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+    [data-gc-composer] :where(textarea.minimal-input)::-webkit-scrollbar {
+        display: none;
     }
     [data-gc-composer] :where(.minimal-btn) {
         border-radius: 12px;
@@ -71,7 +76,7 @@
         <div class="flex-1 flex flex-col justify-end gap-3" data-gc-list>
             {% for row in chat_items %}
                 {% if row.kind == 'date' %}
-                    <div class="flex items-center justify-center py-2" data-gc-date-sep>
+                    <div class="flex items-center justify-center py-2" data-gc-date-sep data-date-key="{{ row.date_key }}">
                         <span class="px-3 py-1 rounded-full bg-white border border-slate-200 text-xs text-slate-600">{{ row.label }}</span>
                     </div>
                 {% else %}
@@ -203,6 +208,7 @@
         const scrollEl = document.querySelector('[data-gc-scroll]');
         const listEl = document.querySelector('[data-gc-list]');
         const formEl = document.querySelector('[data-gc-form]');
+        const msgInput = formEl ? formEl.querySelector('[data-gc-message]') : null;
         const attachBtn = document.querySelector('[data-gc-attach-btn]');
         const attachInput = document.querySelector('[data-gc-attachment]');
         const attachLabel = document.querySelector('[data-gc-attachment-label]');
@@ -222,6 +228,29 @@
         } catch (e) {
             init = null;
         }
+
+        function upsertMessage(msg) {
+            if (!msg || !msg.id) return;
+            const existing = listEl.querySelector(`[data-gc-message][data-id="${CSS.escape(String(msg.id))}"]`);
+            if (existing) {
+                const shouldStickToBottom = isNearBottom();
+                const replacement = renderMessage(msg);
+                existing.replaceWith(replacement);
+                if (shouldStickToBottom) scrollToBottom();
+                return;
+            }
+
+            const shouldStickToBottom = isNearBottom();
+            maybeInsertDateSeparator(msg.date_key, msg.date_label);
+            listEl.appendChild(renderMessage(msg));
+            if (shouldStickToBottom) scrollToBottom();
+        }
+
+        function removeMessage(id) {
+            if (!id) return;
+            const node = listEl.querySelector(`[data-gc-message][data-id="${CSS.escape(String(id))}"]`);
+            if (node) node.remove();
+        }
         if (!init) return;
 
         const pollUrl = init.poll_url;
@@ -235,6 +264,8 @@
         let oldestId = init.oldest_id;
         let hasMore = !!init.has_more;
         let loadingOlder = false;
+
+        const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
         function isNearBottom() {
             const threshold = 120;
@@ -293,7 +324,7 @@
                         const it = items[i];
                         if (!it) continue;
                         if (it.kind === 'date') {
-                            listEl.prepend(renderDateSeparator(it.label || it.date_key || ''));
+                            listEl.prepend(renderDateSeparator(it.date_key, it.label || it.date_key || ''));
                             continue;
                         }
                         const m = it.msg;
@@ -524,10 +555,11 @@
             attachInlineEditHandlers(node);
         });
 
-        function renderDateSeparator(label) {
+        function renderDateSeparator(dateKey, label) {
             const wrapper = document.createElement('div');
             wrapper.className = 'flex items-center justify-center py-2';
             wrapper.setAttribute('data-gc-date-sep', '');
+            wrapper.setAttribute('data-date-key', String(dateKey || ''));
             wrapper.innerHTML = `<span class="px-3 py-1 rounded-full bg-white border border-slate-200 text-xs text-slate-600">${escapeHtml(label)}</span>`;
             return wrapper;
         }
@@ -636,13 +668,52 @@
         function maybeInsertDateSeparator(dateKey, dateLabel) {
             const last = listEl.lastElementChild;
             const lastMsg = last && last.matches && last.matches('[data-gc-message]') ? last : null;
-            const lastDate = lastMsg ? lastMsg.getAttribute('data-date') : null;
+            const lastSep = last && last.matches && last.matches('[data-gc-date-sep]') ? last : null;
+            const lastDate = lastMsg
+                ? lastMsg.getAttribute('data-date')
+                : (lastSep ? lastSep.getAttribute('data-date-key') : null);
             if (!lastDate || String(lastDate) !== String(dateKey)) {
-                listEl.appendChild(renderDateSeparator(dateLabel || dateKey || ''));
+                listEl.appendChild(renderDateSeparator(dateKey, dateLabel || dateKey || ''));
             }
         }
 
+        // Socket.IO realtime updates
+        const hasSocket = typeof window.io === 'function';
+        if (hasSocket) {
+            try {
+                const socket = window.io({ transports: ['websocket', 'polling'] });
+
+                socket.on('connect', () => {
+                    // connected
+                });
+
+                socket.on('chat:new', (payload) => {
+                    const msg = payload && payload.msg;
+                    if (!msg) return;
+                    upsertMessage(msg);
+                    if (!prefersReducedMotion && document.visibilityState !== 'visible') {
+                        // no-op
+                    }
+                });
+
+                socket.on('chat:edited', (payload) => {
+                    const msg = payload && payload.msg;
+                    if (!msg) return;
+                    upsertMessage(msg);
+                });
+
+                socket.on('chat:deleted', (payload) => {
+                    const id = payload && payload.id;
+                    removeMessage(id);
+                });
+            } catch (e) {
+                // fall back to polling
+            }
+        }
+
+        // Fallback polling if Socket.IO not available
         async function poll() {
+            if (!pollUrl) return;
             try {
                 const shouldStickToBottom = isNearBottom();
                 const afterId = getLastMessageId();
@@ -661,8 +732,7 @@
                     }
                     const m = it.msg;
                     if (!m) return;
-                    maybeInsertDateSeparator(m.date_key, m.date_label);
-                    listEl.appendChild(renderMessage(m));
+                    upsertMessage(m);
                 });
 
                 if (shouldStickToBottom) scrollToBottom();
@@ -671,12 +741,142 @@
             }
         }
 
-        setInterval(poll, 4000);
+        if (!hasSocket) {
+            setInterval(poll, 4000);
+        }
+
+        const isMobile = (
+            (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ||
+            (window.matchMedia && window.matchMedia('(max-width: 640px)').matches)
+        );
+
+        if (formEl && msgInput) {
+            msgInput.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter') return;
+                if (isMobile) return;
+                if (e.shiftKey) return;
+                e.preventDefault();
+                if (typeof formEl.requestSubmit === 'function') {
+                    formEl.requestSubmit();
+                } else {
+                    formEl.submit();
+                }
+            });
+        }
 
         if (formEl) {
             formEl.addEventListener('submit', () => {
                 // Let server handle; polling will pick it up.
                 // If you later want full AJAX send, we can do it.
+            });
+        }
+
+        // Push Notifications (header bell toggle)
+        const pushBtn = document.querySelector('[data-gc-push-btn]');
+        const pushIcon = document.querySelector('[data-gc-push-icon]');
+        let pushEnabled = false;
+
+        function setPushIcon(enabled) {
+            pushEnabled = !!enabled;
+            if (!pushIcon) return;
+            pushIcon.setAttribute('data-icon', enabled ? 'solar:bell-bing-outline' : 'solar:bell-off-outline');
+            if (pushBtn) pushBtn.title = enabled ? 'Notifications enabled' : 'Notifications disabled';
+        }
+
+        async function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+
+        async function ensureServiceWorker() {
+            if (!('serviceWorker' in navigator)) return null;
+            try {
+                return await navigator.serviceWorker.register('/sw.js');
+            } catch {
+                return null;
+            }
+        }
+
+        async function getVapidKey() {
+            const res = await fetch('/push/vapid-public-key', { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            return (data && data.public_key) ? String(data.public_key) : '';
+        }
+
+        async function setServerToggle(enabled) {
+            await fetch('/push/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ enabled: !!enabled })
+            });
+        }
+
+        async function refreshPushState() {
+            try {
+                const res = await fetch('/push/status', { headers: { 'Accept': 'application/json' } });
+                const data = await res.json();
+                setPushIcon(!!(data && data.enabled));
+            } catch {
+                setPushIcon(false);
+            }
+        }
+
+        async function subscribePush() {
+            const reg = await ensureServiceWorker();
+            if (!reg) {
+                window.alert('Push notifications are not supported in this browser.');
+                return null;
+            }
+            const key = await getVapidKey();
+            if (!key) {
+                window.alert('Push is not configured on server (missing VAPID keys).');
+                return null;
+            }
+
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') {
+                return null;
+            }
+
+            const existing = await reg.pushManager.getSubscription();
+            const sub = existing || await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: await urlBase64ToUint8Array(key)
+            });
+
+            await fetch('/push/subscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ subscription: sub })
+            });
+
+            return sub;
+        }
+
+        if (pushBtn) {
+            refreshPushState();
+            pushBtn.addEventListener('click', async () => {
+                if (pushEnabled) {
+                    await setServerToggle(false);
+                    setPushIcon(false);
+                    return;
+                }
+
+                const sub = await subscribePush();
+                if (!sub) {
+                    await setServerToggle(false);
+                    setPushIcon(false);
+                    return;
+                }
+
+                await setServerToggle(true);
+                setPushIcon(true);
             });
         }
     })();

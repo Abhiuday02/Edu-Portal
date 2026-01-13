@@ -191,6 +191,11 @@
                 </div>
             </div>
             <div class="flex items-center gap-3">
+                {% if active_page == 'admin_chat' %}
+                    <button type="button" class="w-10 h-10 rounded-xl bg-white/70 border border-slate-200 text-slate-700 hover:bg-white transition-all inline-flex items-center justify-center" data-gc-push-btn title="Notifications">
+                        <span class="iconify text-xl" data-gc-push-icon data-icon="solar:bell-outline"></span>
+                    </button>
+                {% endif %}
                 <button id="adminChangePasswordBtn" type="button" class="admin-btn admin-btn-soft">Change Password</button>
                 <a href="{{ url_for('admin_logout') }}" class="admin-btn admin-btn-soft">Logout</a>
             </div>
@@ -229,6 +234,7 @@
     </main>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
     {% block scripts %}{% endblock %}
 
     <!-- Admin Change Password Bottom Sheet -->

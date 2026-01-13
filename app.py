@@ -7,14 +7,21 @@ import sqlite3
 import calendar
 from urllib.parse import quote
 import uuid
+import json
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import re
 
+from flask_socketio import SocketIO, join_room, disconnect
+from pywebpush import webpush, WebPushException
+
 app = Flask(__name__)
 
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
+
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+CHAT_ROOM = "group_chat"
 
 DB_PATH = Path(__file__).with_name("eduportal.db")
 
@@ -92,6 +99,284 @@ def ensure_group_chat_schema(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE group_chat_messages ADD COLUMN edited_by_type TEXT")
     if "edited_by_id" not in cols:
         db.execute("ALTER TABLE group_chat_messages ADD COLUMN edited_by_id INTEGER")
+
+
+def ensure_push_schema(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY,
+            actor_type TEXT NOT NULL,
+            actor_id INTEGER NOT NULL,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT
+        )
+        """
+    )
+
+
+def _get_actor_from_session(db: sqlite3.Connection) -> dict | None:
+    aid = get_current_admin_id()
+    if aid is not None:
+        admin_user = db.execute("SELECT * FROM admin_users WHERE id = ?", (int(aid),)).fetchone()
+        if admin_user:
+            return {"type": "admin", "id": int(aid), "name": str(admin_user["full_name"] or "Admin")}
+
+    fid = get_current_faculty_id()
+    if fid is not None:
+        ensure_faculty_users_schema(db)
+        faculty_user = db.execute("SELECT * FROM faculty_users WHERE id = ?", (int(fid),)).fetchone()
+        if faculty_user:
+            return {"type": "faculty", "id": int(fid), "name": str(faculty_user["full_name"] or "Faculty")}
+
+    sid = get_current_student_id()
+    if sid is not None:
+        student = db.execute("SELECT * FROM students WHERE id = ?", (int(sid),)).fetchone()
+        if student:
+            return {"type": "student", "id": int(sid), "name": str(student["name"] or "Student")}
+
+    return None
+
+
+def _chat_row_to_msg(row: sqlite3.Row) -> dict:
+    created_at = str(row["created_at"] or "")
+    dk = _chat_date_key(created_at)
+    mime = (row["attachment_mime"] or "") if ("attachment_mime" in row.keys()) else ""
+    is_img = bool(mime and str(mime).startswith("image/"))
+    ap = row["attachment_path"]
+    return {
+        "id": int(row["id"]),
+        "created_at": created_at,
+        "edited_at": str(row["edited_at"] or "") if ("edited_at" in row.keys()) else "",
+        "date_key": dk,
+        "date_label": _chat_date_label(dk),
+        "time_label": fmt_chat_time(created_at),
+        "edited_label": fmt_chat_time(str(row["edited_at"] or "")) if ("edited_at" in row.keys() and row["edited_at"]) else "",
+        "actor_type": str(row["actor_type"] or ""),
+        "actor_id": int(row["actor_id"] or 0),
+        "actor_name": str(row["actor_name"] or ""),
+        "message": str(row["message"] or ""),
+        "attachment_path": ap,
+        "attachment_name": row["attachment_name"],
+        "attachment_mime": row["attachment_mime"],
+        "attachment_is_image": is_img,
+        "attachment_url": url_for("static", filename=ap) if ap else None,
+    }
+
+
+def _push_send_to_actor(db: sqlite3.Connection, actor_type: str, actor_id: int, payload: dict) -> None:
+    ensure_push_schema(db)
+    pub = (os.getenv("VAPID_PUBLIC_KEY", "") or "").strip()
+    priv = (os.getenv("VAPID_PRIVATE_KEY", "") or "").strip()
+    if not pub or not priv:
+        return
+
+    if "\\n" in priv:
+        priv = priv.replace("\\n", "\n")
+    if "-----BEGIN" not in priv and re.fullmatch(r"[A-Za-z0-9+/=_\-]+", priv or ""):
+        b64 = priv.replace("-", "+").replace("_", "/")
+        b64 += "=" * ((4 - (len(b64) % 4)) % 4)
+        priv = "-----BEGIN EC PRIVATE KEY-----\n" + "\n".join([b64[i : i + 64] for i in range(0, len(b64), 64)]) + "\n-----END EC PRIVATE KEY-----\n"
+
+    rows = db.execute(
+        """
+        SELECT * FROM push_subscriptions
+        WHERE actor_type = ? AND actor_id = ? AND enabled = 1
+        """,
+        (str(actor_type), int(actor_id)),
+    ).fetchall()
+
+    if not rows:
+        return
+
+    data = json.dumps(payload)
+    now = datetime.now().isoformat(timespec="seconds")
+    for r in rows:
+        sub_info = {
+            "endpoint": str(r["endpoint"]),
+            "keys": {"p256dh": str(r["p256dh"]), "auth": str(r["auth"])},
+        }
+        try:
+            webpush(
+                sub_info,
+                data=data,
+                vapid_private_key=priv,
+                vapid_claims={"sub": "mailto:admin@example.com"},
+            )
+            db.execute(
+                "UPDATE push_subscriptions SET updated_at = ? WHERE id = ?",
+                (now, int(r["id"])),
+            )
+        except WebPushException:
+            db.execute("DELETE FROM push_subscriptions WHERE id = ?", (int(r["id"]),))
+        except Exception:
+            return
+    db.commit()
+
+
+def _push_broadcast_chat(db: sqlite3.Connection, actor: dict, payload: dict) -> None:
+    ensure_push_schema(db)
+    rows = db.execute(
+        """
+        SELECT DISTINCT actor_type, actor_id
+        FROM push_subscriptions
+        WHERE enabled = 1
+        """
+    ).fetchall()
+
+    for r in rows:
+        t = str(r["actor_type"] or "")
+        i = int(r["actor_id"] or 0)
+        if t == str(actor.get("type")) and i == int(actor.get("id") or 0):
+            continue
+        p = dict(payload or {})
+        if not p.get("url"):
+            p["url"] = _chat_url_for_actor(t)
+        _push_send_to_actor(db, t, i, p)
+
+
+def _chat_url_for_actor(actor_type: str) -> str:
+    t = (actor_type or "").strip().lower()
+    if t == "admin":
+        return "/admin/chat"
+    if t == "faculty":
+        return "/faculty/chat"
+    return "/chat"
+
+
+@app.get("/sw.js")
+def service_worker():
+    sw = Path(__file__).with_name("static") / "sw.js"
+    if not sw.exists():
+        abort(404)
+    return send_file(sw, mimetype="application/javascript")
+
+
+@app.get("/push/vapid-public-key")
+def push_vapid_public_key():
+    pub = (os.getenv("VAPID_PUBLIC_KEY", "") or "").strip()
+    return jsonify({"ok": True, "public_key": pub})
+
+
+@app.get("/push/status")
+def push_status():
+    db = get_db()
+    actor = _get_actor_from_session(db)
+    if not actor:
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+    ensure_push_schema(db)
+    row = db.execute(
+        """
+        SELECT enabled FROM push_subscriptions
+        WHERE actor_type = ? AND actor_id = ?
+        ORDER BY updated_at DESC, created_at DESC
+        LIMIT 1
+        """,
+        (str(actor["type"]), int(actor["id"])),
+    ).fetchone()
+    enabled = bool(row and int(row["enabled"] or 0) == 1)
+    return jsonify({"ok": True, "enabled": enabled})
+
+
+@app.post("/push/subscribe")
+def push_subscribe():
+    db = get_db()
+    actor = _get_actor_from_session(db)
+    if not actor:
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+    ensure_push_schema(db)
+
+    body = request.get_json(silent=True) or {}
+    sub = body.get("subscription") or {}
+    endpoint = str(sub.get("endpoint") or "").strip()
+    keys = sub.get("keys") or {}
+    p256dh = str(keys.get("p256dh") or "").strip()
+    auth = str(keys.get("auth") or "").strip()
+    if not endpoint or not p256dh or not auth:
+        return jsonify({"ok": False, "error": "Invalid subscription"}), 400
+
+    now = datetime.now().isoformat(timespec="seconds")
+    existing = db.execute(
+        "SELECT id FROM push_subscriptions WHERE endpoint = ?",
+        (endpoint,),
+    ).fetchone()
+    if existing:
+        db.execute(
+            """
+            UPDATE push_subscriptions
+            SET actor_type = ?, actor_id = ?, p256dh = ?, auth = ?, enabled = 1, updated_at = ?
+            WHERE endpoint = ?
+            """,
+            (str(actor["type"]), int(actor["id"]), p256dh, auth, now, endpoint),
+        )
+    else:
+        db.execute(
+            """
+            INSERT INTO push_subscriptions (actor_type, actor_id, endpoint, p256dh, auth, enabled, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+            """,
+            (str(actor["type"]), int(actor["id"]), endpoint, p256dh, auth, now, now),
+        )
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.post("/push/unsubscribe")
+def push_unsubscribe():
+    db = get_db()
+    actor = _get_actor_from_session(db)
+    if not actor:
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+    ensure_push_schema(db)
+
+    body = request.get_json(silent=True) or {}
+    endpoint = str(body.get("endpoint") or "").strip()
+    if not endpoint:
+        return jsonify({"ok": False, "error": "Missing endpoint"}), 400
+    db.execute(
+        "DELETE FROM push_subscriptions WHERE endpoint = ? AND actor_type = ? AND actor_id = ?",
+        (endpoint, str(actor["type"]), int(actor["id"])),
+    )
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.post("/push/toggle")
+def push_toggle():
+    db = get_db()
+    actor = _get_actor_from_session(db)
+    if not actor:
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+    ensure_push_schema(db)
+
+    body = request.get_json(silent=True) or {}
+    enabled = 1 if bool(body.get("enabled")) else 0
+    now = datetime.now().isoformat(timespec="seconds")
+    db.execute(
+        """
+        UPDATE push_subscriptions
+        SET enabled = ?, updated_at = ?
+        WHERE actor_type = ? AND actor_id = ?
+        """,
+        (enabled, now, str(actor["type"]), int(actor["id"])),
+    )
+    db.commit()
+    return jsonify({"ok": True, "enabled": bool(enabled)})
+
+
+@socketio.on("connect")
+def socket_connect():
+    db = get_db()
+    ensure_group_chat_schema(db)
+    actor = _get_actor_from_session(db)
+    if not actor:
+        disconnect()
+        return
+    join_room(CHAT_ROOM)
 
 
 def fmt_chat_time(value: str) -> str:
@@ -826,6 +1111,29 @@ def chat_send():
         ),
     )
     db.commit()
+
+    msg_id = int(db.execute("SELECT last_insert_rowid() AS id").fetchone()["id"])
+    row = db.execute(
+        "SELECT * FROM group_chat_messages WHERE id = ?",
+        (msg_id,),
+    ).fetchone()
+    if row:
+        msg = _chat_row_to_msg(row)
+        socketio.emit("chat:new", {"msg": msg}, room=CHAT_ROOM)
+
+        notif_body = msg.get("message") or "Attachment"
+        payload = {
+            "kind": "chat:new",
+            "title": "New message",
+            "body": f"{msg.get('actor_name')}: {notif_body}",
+            "url": None,
+            "message_id": int(msg.get("id") or 0),
+        }
+        _push_broadcast_chat(db, actor, payload)
+
+    wants_json = "application/json" in (request.headers.get("Accept") or "")
+    if wants_json:
+        return jsonify({"ok": True, "msg": msg if row else None})
     return redirect(request.referrer or url_for("chat_panel"))
 
 
@@ -923,6 +1231,23 @@ def chat_edit_message(message_id: int):
         (message, now, str(actor["type"]), int(actor["id"]), int(message_id)),
     )
     db.commit()
+
+    row2 = db.execute(
+        "SELECT * FROM group_chat_messages WHERE id = ? AND is_deleted = 0",
+        (int(message_id),),
+    ).fetchone()
+    msg = _chat_row_to_msg(row2) if row2 else None
+    if msg:
+        socketio.emit("chat:edited", {"msg": msg}, room=CHAT_ROOM)
+        payload = {
+            "kind": "chat:edited",
+            "title": "Message edited",
+            "body": f"{msg.get('actor_name')}: {msg.get('message')}",
+            "url": None,
+            "message_id": int(msg.get("id") or 0),
+        }
+        _push_broadcast_chat(db, actor, payload)
+
     return jsonify({
         "ok": True,
         "message": message,
@@ -954,6 +1279,16 @@ def chat_delete_message(message_id: int):
 
     db.execute("UPDATE group_chat_messages SET is_deleted = 1 WHERE id = ?", (int(message_id),))
     db.commit()
+
+    socketio.emit("chat:deleted", {"id": int(message_id)}, room=CHAT_ROOM)
+    payload = {
+        "kind": "chat:deleted",
+        "title": "Message deleted",
+        "body": "A message was deleted",
+        "url": None,
+        "message_id": int(message_id),
+    }
+    _push_broadcast_chat(db, actor, payload)
     return jsonify({"ok": True})
 
 
@@ -1620,6 +1955,7 @@ def init_db() -> None:
         )
 
         ensure_group_chat_schema(db)
+        ensure_push_schema(db)
 
         ensure_news_posts_rich_schema(db)
         ensure_news_posts_faculty_author_schema(db)
@@ -4739,16 +5075,17 @@ def admin_teachers():
             }
         )
 
+    msg_error = (request.args.get("error") or "").strip() or None
+    msg_success = (request.args.get("success") or "").strip() or None
+
     return render_template(
         "admin_teachers.html",
-        page_title="Teachers",
-        page_subtitle="Manage faculty list",
-        active_page="admin_teachers",
         faculty_items=faculty_items,
         teachers=teachers,
         faculty_users=faculty_rows,
         filters=filters,
-        error=None,
+        error=msg_error,
+        success=msg_success,
     )
 
 
@@ -5097,6 +5434,35 @@ def admin_faculty_delete(faculty_id: int):
     return redirect(url_for("admin_teachers"))
 
 
+@app.post("/admin/faculty/<int:faculty_id>/reset-password")
+@admin_login_required
+def admin_faculty_reset_password(faculty_id: int):
+    new_password = request.form.get("new_password") or ""
+    confirm_password = request.form.get("confirm_password") or ""
+
+    if not new_password or not confirm_password:
+        return redirect(url_for("admin_teachers", error=quote("Please enter and confirm the new password.")))
+    if new_password != confirm_password:
+        return redirect(url_for("admin_teachers", error=quote("Passwords do not match.")))
+    if len(new_password) < 8:
+        return redirect(url_for("admin_teachers", error=quote("Password must be at least 8 characters.")))
+
+    db = get_db()
+    ensure_faculty_users_schema(db)
+
+    faculty = db.execute("SELECT id FROM faculty_users WHERE id = ?", (int(faculty_id),)).fetchone()
+    if not faculty:
+        return redirect(url_for("admin_teachers", error=quote("Faculty account not found.")))
+
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    db.execute(
+        "UPDATE faculty_users SET password_hash = ?, updated_at = ? WHERE id = ?",
+        (generate_password_hash(new_password), now, int(faculty_id)),
+    )
+    db.commit()
+    return redirect(url_for("admin_teachers"))
+
+
 @app.post("/admin/faculty/<int:faculty_id>/update")
 @admin_login_required
 def admin_faculty_update(faculty_id: int):
@@ -5167,6 +5533,35 @@ def admin_teacher_update(teacher_id: int):
         "UPDATE teachers SET name = ?, faculty_type = ?, designation = ?, department = ?, email = ?, phone = ? WHERE id = ?",
         (name, faculty_type, designation, department, email, phone, int(teacher_id)),
     )
+
+    # Keep faculty_users in sync if this teacher has a login identity.
+    if email:
+        ensure_faculty_users_schema(db)
+        normalized_email = email.strip().lower()
+        phone_digits = re.sub(r"\D+", "", (phone or ""))[-10:] if phone else None
+        existing = db.execute(
+            "SELECT * FROM faculty_users WHERE email = ?",
+            (normalized_email,),
+        ).fetchone()
+        if existing is not None:
+            now = datetime.utcnow().isoformat(timespec="seconds")
+            db.execute(
+                """
+                UPDATE faculty_users
+                SET full_name = ?, department = ?, faculty_type = ?, designation = ?, phone = ?, updated_at = ?
+                WHERE email = ?
+                """,
+                (
+                    name,
+                    department,
+                    (faculty_type or str(existing["faculty_type"] or "Faculty")),
+                    designation,
+                    (phone_digits or phone or str(existing["phone"] or "")),
+                    now,
+                    normalized_email,
+                ),
+            )
+
     db.commit()
     return redirect(url_for("admin_teachers"))
 
@@ -5678,7 +6073,100 @@ def admin_teachers_create():
         )
     db = get_db()
     ensure_teachers_schema(db)
+    ensure_faculty_users_schema(db)
     now = datetime.utcnow().isoformat(timespec="seconds")
+
+    # If admin provides login identifiers, create/sync a login account in faculty_users.
+    # Teachers table remains for directory entries; faculty login uses faculty_users.
+    created_or_updated_login = False
+    if email and phone:
+        normalized_email = email.strip().lower()
+        phone_digits = re.sub(r"\D+", "", phone)[-10:]
+        existing = db.execute(
+            "SELECT * FROM faculty_users WHERE email = ?",
+            (normalized_email,),
+        ).fetchone()
+
+        if existing is None:
+            initial_password = uuid.uuid4().hex
+            db.execute(
+                """
+                INSERT INTO faculty_users (
+                    full_name, department, faculty_type, designation,
+                    email, phone, password_hash, status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'APPROVED', ?, ?)
+                """,
+                (
+                    name,
+                    department,
+                    (faculty_type or "Faculty"),
+                    designation,
+                    normalized_email,
+                    (phone_digits or phone),
+                    generate_password_hash(initial_password),
+                    now,
+                    now,
+                ),
+            )
+            created_or_updated_login = True
+
+        # If account already exists, ensure its directory fields are up to date.
+        if existing is not None:
+            db.execute(
+                """
+                UPDATE faculty_users
+                SET full_name = ?, department = ?, faculty_type = ?, designation = ?, phone = ?, updated_at = ?
+                WHERE email = ?
+                """,
+                (
+                    name,
+                    department,
+                    (faculty_type or str(existing["faculty_type"] or "Faculty")),
+                    designation,
+                    (phone_digits or phone),
+                    now,
+                    normalized_email,
+                ),
+            )
+            created_or_updated_login = True
+
+        # Always also create/sync the directory entry.
+        existing_teacher = None
+        if normalized_email:
+            existing_teacher = db.execute(
+                "SELECT id FROM teachers WHERE LOWER(email) = ?",
+                (normalized_email,),
+            ).fetchone()
+        if existing_teacher is None:
+            db.execute(
+                """
+                INSERT INTO teachers (name, faculty_type, designation, department, email, phone, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (name, faculty_type, designation, department, normalized_email, (phone_digits or phone), now),
+            )
+        else:
+            db.execute(
+                """
+                UPDATE teachers
+                SET name = ?, faculty_type = ?, designation = ?, department = ?, phone = ?
+                WHERE id = ?
+                """,
+                (name, faculty_type, designation, department, (phone_digits or phone), int(existing_teacher["id"])),
+            )
+
+        db.commit()
+        return redirect(
+            url_for(
+                "admin_teachers",
+                success=quote(
+                    "Faculty added and login enabled. Use Reset Password to set/change the login password."
+                    if created_or_updated_login
+                    else "Faculty added."
+                ),
+            )
+        )
+
     db.execute(
         """
         INSERT INTO teachers (name, faculty_type, designation, department, email, phone, created_at)
@@ -6444,6 +6932,7 @@ def teachers():
     student = db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
 
     ensure_faculty_users_schema(db)
+    ensure_teachers_schema(db)
 
     filters = {
         "q": (request.args.get("q") or "").strip(),
@@ -7705,4 +8194,4 @@ if __name__ == "__main__":
     )
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "5000"))
-    app.run(host=host, port=port, debug=debug)
+    socketio.run(app, host=host, port=port, debug=debug)

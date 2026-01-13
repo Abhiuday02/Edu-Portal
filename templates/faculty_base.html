@@ -195,6 +195,11 @@
                 </div>
             </div>
             <div class="flex items-center gap-3">
+                {% if active_page == 'faculty_chat' %}
+                    <button type="button" class="w-10 h-10 rounded-xl bg-white/70 border border-slate-200 text-slate-700 hover:bg-white transition-all inline-flex items-center justify-center" data-gc-push-btn title="Notifications">
+                        <span class="iconify text-xl" data-gc-push-icon data-icon="solar:bell-outline"></span>
+                    </button>
+                {% endif %}
                 <a href="{{ url_for('faculty_logout') }}" class="faculty-btn faculty-btn-soft">Logout</a>
             </div>
         </header>
@@ -238,6 +243,7 @@
     </main>
 
     <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
     {% block scripts %}{% endblock %}
 </body>
 
