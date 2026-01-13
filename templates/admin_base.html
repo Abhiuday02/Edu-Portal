@@ -5,10 +5,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EduPortal - Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.15/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
     <style>
+        :root { font-family: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+        body { font-family: inherit; scrollbar-gutter: stable; }
         .admin-card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04); transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1), border-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1); will-change: transform; }
         .admin-table thead { background: #f8fafc; }
         .admin-table th { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
@@ -27,6 +32,8 @@
         .admin-btn-danger:hover { background: #ffe4e6; }
         .admin-pill { border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; }
 
+        .ui-pressed { transform: translateY(0) scale(0.985) !important; filter: brightness(0.98); }
+
         @media (min-width: 768px) {
             .md\:hidden { display: none !important; }
         }
@@ -36,10 +43,14 @@
             position: fixed;
             top: 0;
             left: 0;
+            right: 0;
             height: 3px;
             background: linear-gradient(90deg, #3b82f6, #8b5cf6);
             z-index: 9999;
-            transition: width 0.3s ease, opacity 0.3s ease;
+            transform: scaleX(0);
+            transform-origin: left;
+            will-change: transform;
+            transition: transform 0.3s ease, opacity 0.3s ease;
             opacity: 0;
         }
 
@@ -63,6 +74,7 @@
         @media (prefers-reduced-motion: reduce) {
             .admin-card, .admin-input, .admin-btn { transition: none !important; }
             .ux-reveal, .ux-reveal.is-in { opacity: 1 !important; transform: none !important; animation: none !important; }
+            .ui-pressed { transform: none !important; filter: none !important; }
         }
     </style>
 </head>

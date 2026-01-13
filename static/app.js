@@ -3,28 +3,52 @@ function initPageProgress() {
     const progressBar = document.getElementById('page-progress');
     if (!progressBar) return;
 
-    let progressInterval;
+    let rafId = null;
     let progress = 0;
+    let isRunning = false;
+    let lastTick = 0;
 
     function startProgress() {
+        if (isRunning) return;
+        isRunning = true;
         progress = 0;
-        progressBar.style.width = '0%';
+        lastTick = performance.now();
+        progressBar.style.transform = 'scaleX(0)';
         progressBar.classList.add('loading');
         document.body.classList.add('navigating');
 
-        progressInterval = setInterval(() => {
-            progress += Math.random() * 30;
-            if (progress > 90) progress = 90;
-            progressBar.style.width = progress + '%';
-        }, 150);
+        const tick = (now) => {
+            if (!isRunning) return;
+            const dt = Math.max(0, now - lastTick);
+            lastTick = now;
+
+            // Smoothly approach 0.9 without jumping.
+            // The closer we get, the smaller the increments become.
+            const remaining = 0.9 - progress;
+            if (remaining > 0) {
+                const step = Math.min(remaining, (dt / 1000) * 0.65 * (0.25 + remaining));
+                progress += step;
+            }
+
+            progressBar.style.transform = `scaleX(${Math.max(0, Math.min(0.9, progress))})`;
+            rafId = requestAnimationFrame(tick);
+        };
+
+        rafId = requestAnimationFrame(tick);
     }
 
     function completeProgress() {
-        clearInterval(progressInterval);
-        progressBar.style.width = '100%';
+        if (!isRunning) return;
+        isRunning = false;
+        if (rafId) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+        }
+
+        progressBar.style.transform = 'scaleX(1)';
         setTimeout(() => {
             progressBar.classList.remove('loading');
-            progressBar.style.width = '0%';
+            progressBar.style.transform = 'scaleX(0)';
             document.body.classList.remove('navigating');
         }, 300);
     }
@@ -53,6 +77,8 @@ function initPageProgress() {
         if (url.origin === window.location.origin && url.pathname !== window.location.pathname) {
             e.preventDefault();
             startProgress();
+            link.setAttribute('aria-disabled', 'true');
+            link.style.pointerEvents = 'none';
             window.location.href = href;
         }
     });
@@ -60,6 +86,62 @@ function initPageProgress() {
     // Complete progress when page is loaded/hidden
     window.addEventListener('pagehide', completeProgress);
     window.addEventListener('beforeunload', completeProgress);
+}
+
+function initTapFeedback() {
+    const selector = 'button, a.minimal-nav-item, a.admin-btn, .minimal-btn, .admin-btn, [data-mobile-nav-toggle]';
+
+    function targetFromEvent(e) {
+        const t = e.target;
+        if (!(t instanceof Element)) return null;
+        return t.closest(selector);
+    }
+
+    function press(el) {
+        if (!(el instanceof HTMLElement)) return;
+        if (el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true') return;
+        el.classList.add('ui-pressed');
+    }
+
+    function release(el) {
+        if (!(el instanceof HTMLElement)) return;
+        el.classList.remove('ui-pressed');
+    }
+
+    document.addEventListener(
+        'pointerdown',
+        (e) => {
+            const el = targetFromEvent(e);
+            if (el) press(el);
+        },
+        { passive: true }
+    );
+
+    document.addEventListener(
+        'pointerup',
+        (e) => {
+            const el = targetFromEvent(e);
+            if (el) release(el);
+        },
+        { passive: true }
+    );
+
+    document.addEventListener(
+        'pointercancel',
+        (e) => {
+            const el = targetFromEvent(e);
+            if (el) release(el);
+        },
+        { passive: true }
+    );
+
+    document.addEventListener(
+        'blur',
+        () => {
+            document.querySelectorAll('.ui-pressed').forEach((el) => el.classList.remove('ui-pressed'));
+        },
+        true
+    );
 }
 
 function initNewsFiltersBottomSheet() {
@@ -1550,6 +1632,7 @@ function initVaultFileManager() {
 
 document.addEventListener('DOMContentLoaded', () => {
     initPageProgress();
+    initTapFeedback();
     generateAttendance();
     applyAttendanceRings();
     initUxReveal();
