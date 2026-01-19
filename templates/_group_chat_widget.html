@@ -42,6 +42,11 @@
         white-space: pre-wrap;
         word-break: break-word;
     }
+    [data-gc-composer] [data-gc-editor]:empty::before {
+        content: attr(data-placeholder);
+        color: rgb(148 163 184);
+        pointer-events: none;
+    }
     [data-gc-composer] [data-gc-editor]:focus {
         border-color: #6366f1;
         box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
@@ -229,7 +234,7 @@
                 <div class="grid grid-cols-[1fr_auto_auto] gap-2 items-center mb-0">
                     <input type="hidden" name="message" data-gc-message>
                     <div class="w-full" data-gc-editor-wrap>
-                        <div data-gc-editor contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true" placeholder="Type a message..." {% if not (chat_can_send or false) %}data-disabled="1"{% endif %}></div>
+                        <div data-gc-editor contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true" data-placeholder="Type a message..." {% if not (chat_can_send or false) %}data-disabled="1"{% endif %}></div>
                     </div>
 
                     <div>

@@ -7173,10 +7173,11 @@ def landing():
 def dashboard():
     db = get_db()
     sid = get_current_student_id()
-    student = db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
 
     ensure_schedule_schema(db)
     ensure_group_chat_schema(db)
+
+    student = db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
 
     folders = db.execute(
         "SELECT * FROM vault_folders WHERE student_id = ? ORDER BY datetime(created_at) DESC",
@@ -7771,6 +7772,7 @@ def news():
 def schedules():
     db = get_db()
     sid = get_current_student_id()
+    ensure_schedule_schema(db)
     student = db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
     schedule_id = int(student["schedule_id"] or 1) if student and ("schedule_id" in student.keys()) else 1
 
