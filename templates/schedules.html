@@ -23,7 +23,7 @@
             <div data-weekly-timetable data-initial-day="{{ today_dow if today_dow is not none else 0 }}">
                 <div class="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-2">
                     {% for d in range(0, 7) %}
-                        <button type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all whitespace-nowrap" data-week-tab="{{ d }}">
+                        <button type="button" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-all whitespace-nowrap" data-week-tab="{{ d }}"{% if today_dow is not none and d == today_dow %} data-is-today="1"{% endif %}>
                             {{ day_names[d] }}
                         </button>
                     {% endfor %}
@@ -127,7 +127,7 @@
         </div>
     </div>
 
-    <div class="minimal-card p-6" data-schedule-calendar data-today-date="{{ today_date }}">
+    <div class="minimal-card p-6" data-schedule-calendar data-today-date="{{ today_date }}" data-view-year="{{ view_year }}" data-view-month="{{ view_month }}">
         <div class="flex items-center justify-between mb-4">
             <div>
                 <h3 class="text-lg font-semibold text-slate-900">Calendar</h3>
@@ -152,12 +152,12 @@
                     {% set date_key = cell.date %}
                     {% set has_items = (month_items_by_date.get(date_key) or schedule_by_date.get(date_key)) %}
                     <button type="button"
-                            class="aspect-square rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all flex flex-col items-center justify-center relative {% if not cell.in_month %}opacity-40{% endif %}"
+                            class="aspect-square rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all flex flex-col items-center justify-center relative {% if date_key == today_date %}border-indigo-300 bg-indigo-50 shadow-sm{% endif %}{% if not cell.in_month %} opacity-40{% endif %}"
                             data-cal-date="{{ date_key }}"
                             data-in-month="{{ 1 if cell.in_month else 0 }}"
                             data-items="{{ month_items_by_date.get(date_key, []) | tojson | forceescape }}"
                             data-events="{{ schedule_by_date.get(date_key, []) | tojson | forceescape }}">
-                        <span class="text-sm font-semibold text-slate-900{% if date_key == today_date %} text-indigo-600{% endif %}">{{ cell.day }}</span>
+                        <span class="text-sm font-semibold text-slate-900{% if date_key == today_date %} text-indigo-700{% endif %}">{{ cell.day }}</span>
                         {% if has_items %}
                             <span class="absolute bottom-2 w-2 h-2 rounded-full bg-indigo-500"></span>
                         {% endif %}

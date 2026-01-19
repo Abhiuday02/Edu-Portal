@@ -3804,9 +3804,22 @@ def faculty_schedules():
 
     today = datetime.now()
     today_dow = today.weekday()
-    month_start = f"{today.year:04d}-{today.month:02d}-01"
-    last_day = calendar.monthrange(today.year, today.month)[1]
-    month_end = f"{today.year:04d}-{today.month:02d}-{last_day:02d}"
+
+    try:
+        view_year = int(request.args.get("year") or today.year)
+    except Exception:
+        view_year = today.year
+    try:
+        view_month = int(request.args.get("month") or today.month)
+    except Exception:
+        view_month = today.month
+    if view_month < 1 or view_month > 12:
+        view_month = today.month
+
+    view_dt = datetime(view_year, view_month, 1)
+    month_start = f"{view_dt.year:04d}-{view_dt.month:02d}-01"
+    last_day = calendar.monthrange(view_dt.year, view_dt.month)[1]
+    month_end = f"{view_dt.year:04d}-{view_dt.month:02d}-{last_day:02d}"
 
     month_items = db.execute(
         """
@@ -3853,13 +3866,13 @@ def faculty_schedules():
 
     calendar_weeks = []
     cal = calendar.Calendar(firstweekday=0)
-    for week in cal.monthdatescalendar(today.year, today.month):
+    for week in cal.monthdatescalendar(view_dt.year, view_dt.month):
         calendar_weeks.append(
             [
                 {
                     "date": d.isoformat(),
                     "day": d.day,
-                    "in_month": d.month == today.month,
+                    "in_month": d.month == view_dt.month,
                 }
                 for d in week
             ]
@@ -3901,9 +3914,11 @@ def faculty_schedules():
         month_items=month_items,
         month_schedule_events=month_schedule_events,
         month_overview=month_overview,
-        month_label=today.strftime("%B %Y"),
+        month_label=view_dt.strftime("%B %Y"),
         today_dow=today_dow,
         today_date=today.date().isoformat(),
+        view_year=int(view_dt.year),
+        view_month=int(view_dt.month),
         calendar_weeks=calendar_weeks,
         month_items_by_date=month_items_by_date,
         schedule_by_date=schedule_by_date,
@@ -7796,9 +7811,22 @@ def schedules():
 
     today = datetime.now()
     today_dow = today.weekday()
-    month_start = f"{today.year:04d}-{today.month:02d}-01"
-    last_day = calendar.monthrange(today.year, today.month)[1]
-    month_end = f"{today.year:04d}-{today.month:02d}-{last_day:02d}"
+
+    try:
+        view_year = int(request.args.get("year") or today.year)
+    except Exception:
+        view_year = today.year
+    try:
+        view_month = int(request.args.get("month") or today.month)
+    except Exception:
+        view_month = today.month
+    if view_month < 1 or view_month > 12:
+        view_month = today.month
+
+    view_dt = datetime(view_year, view_month, 1)
+    month_start = f"{view_dt.year:04d}-{view_dt.month:02d}-01"
+    last_day = calendar.monthrange(view_dt.year, view_dt.month)[1]
+    month_end = f"{view_dt.year:04d}-{view_dt.month:02d}-{last_day:02d}"
     month_items = db.execute(
         """
         SELECT * FROM calendar_items
@@ -7846,13 +7874,13 @@ def schedules():
 
     calendar_weeks = []
     cal = calendar.Calendar(firstweekday=0)
-    for week in cal.monthdatescalendar(today.year, today.month):
+    for week in cal.monthdatescalendar(view_dt.year, view_dt.month):
         calendar_weeks.append(
             [
                 {
                     "date": d.isoformat(),
                     "day": d.day,
-                    "in_month": d.month == today.month,
+                    "in_month": d.month == view_dt.month,
                 }
                 for d in week
             ]
@@ -7905,9 +7933,11 @@ def schedules():
         month_items=month_items,
         month_schedule_events=month_schedule_events,
         month_overview=month_overview,
-        month_label=today.strftime("%B %Y"),
+        month_label=view_dt.strftime("%B %Y"),
         today_dow=today_dow,
         today_date=today.date().isoformat(),
+        view_year=int(view_dt.year),
+        view_month=int(view_dt.month),
         calendar_weeks=calendar_weeks,
         month_items_by_date=month_items_by_date,
         schedule_by_date=schedule_by_date,

@@ -817,12 +817,26 @@ function initWeeklyTimetable() {
         panels.scrollTo({ left: index * width, behavior: 'smooth' });
     }
 
+    function clampDayIndex(i) {
+        const n = Number(i);
+        if (!Number.isFinite(n)) {
+            return 0;
+        }
+        return Math.max(0, Math.min(6, n));
+    }
+
+    function setActiveDay(index) {
+        const next = clampDayIndex(index);
+        root.dataset.activeDay = String(next);
+        setActiveTab(next);
+        scrollToIndex(next);
+    }
+
     tabs.forEach((btn) => {
         btn.addEventListener('click', () => {
             const index = Number(btn.dataset.weekTab);
             if (Number.isFinite(index)) {
-                scrollToIndex(index);
-                setActiveTab(index);
+                setActiveDay(index);
             }
         });
     });
@@ -836,8 +850,56 @@ function initWeeklyTimetable() {
             raf = 0;
             const width = panels.clientWidth || 1;
             const index = Math.round(panels.scrollLeft / width);
-            setActiveTab(index);
+            root.dataset.activeDay = String(clampDayIndex(index));
+            setActiveTab(Number(root.dataset.activeDay));
         });
+    }, { passive: true });
+
+    // Controlled horizontal swipe: move only 1 day per swipe.
+    let swipeStartX = 0;
+    let swipeStartY = 0;
+    let swipeDragging = false;
+    let swipeConsumed = false;
+    let swipeLock = false;
+
+    function lockSwipeTemporarily() {
+        swipeLock = true;
+        window.setTimeout(() => {
+            swipeLock = false;
+        }, 350);
+    }
+
+    panels.addEventListener('touchstart', (e) => {
+        if (!e.touches || !e.touches[0]) {
+            return;
+        }
+        swipeStartX = e.touches[0].clientX;
+        swipeStartY = e.touches[0].clientY;
+        swipeDragging = true;
+        swipeConsumed = false;
+    }, { passive: true });
+
+    panels.addEventListener('touchmove', (e) => {
+        if (!swipeDragging || swipeConsumed || swipeLock || !e.touches || !e.touches[0]) {
+            return;
+        }
+        const dx = e.touches[0].clientX - swipeStartX;
+        const dy = e.touches[0].clientY - swipeStartY;
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 24 && e.cancelable) {
+            // Prevent vertical scroll once we detect a horizontal gesture.
+            e.preventDefault();
+        }
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 70) {
+            const current = clampDayIndex(root.dataset.activeDay || root.dataset.initialDay || 0);
+            const next = dx < 0 ? current + 1 : current - 1;
+            swipeConsumed = true;
+            lockSwipeTemporarily();
+            setActiveDay(next);
+        }
+    }, { passive: false });
+
+    panels.addEventListener('touchend', () => {
+        swipeDragging = false;
     }, { passive: true });
 
     window.addEventListener('resize', () => {
@@ -848,9 +910,7 @@ function initWeeklyTimetable() {
     });
 
     const initial = Number(root.dataset.initialDay || 0);
-    root.dataset.activeDay = String(Number.isFinite(initial) ? initial : 0);
-    setActiveTab(Number(root.dataset.activeDay));
-    panels.scrollLeft = (panels.clientWidth || 1) * Number(root.dataset.activeDay);
+    setActiveDay(Number.isFinite(initial) ? initial : 0);
 }
 
 function initScheduleCalendarSheet() {
@@ -858,6 +918,75 @@ function initScheduleCalendarSheet() {
     if (!calendarRoot) {
         return;
     }
+
+    // Month swipe navigation (left/right): one month per gesture with lockout.
+    (function initMonthSwipeNav() {
+        const viewYear = Number(calendarRoot.dataset.viewYear || 0);
+        const viewMonth = Number(calendarRoot.dataset.viewMonth || 0);
+        if (!Number.isFinite(viewYear) || !Number.isFinite(viewMonth) || viewYear <= 0 || viewMonth <= 0) {
+            return;
+        }
+
+        let startX = 0;
+        let startY = 0;
+        let dragging = false;
+        let consumed = false;
+        let lock = false;
+
+        function lockTemporarily() {
+            lock = true;
+            window.setTimeout(() => {
+                lock = false;
+            }, 450);
+        }
+
+        function goToMonth(delta) {
+            if (lock) {
+                return;
+            }
+            lockTemporarily();
+
+            const base = new Date(viewYear, viewMonth - 1, 1);
+            base.setMonth(base.getMonth() + delta);
+            const y = base.getFullYear();
+            const m = base.getMonth() + 1;
+
+            const url = new URL(window.location.href);
+            url.searchParams.set('year', String(y));
+            url.searchParams.set('month', String(m));
+            window.location.href = url.toString();
+        }
+
+        calendarRoot.addEventListener('touchstart', (e) => {
+            if (!e.touches || !e.touches[0]) {
+                return;
+            }
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            dragging = true;
+            consumed = false;
+        }, { passive: true });
+
+        calendarRoot.addEventListener('touchmove', (e) => {
+            if (!dragging || consumed || lock || !e.touches || !e.touches[0]) {
+                return;
+            }
+            const dx = e.touches[0].clientX - startX;
+            const dy = e.touches[0].clientY - startY;
+            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 24 && e.cancelable) {
+                e.preventDefault();
+            }
+            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 80) {
+                consumed = true;
+                // Swipe left -> next month, swipe right -> previous month
+                goToMonth(dx < 0 ? 1 : -1);
+            }
+        }, { passive: false });
+
+        calendarRoot.addEventListener('touchend', () => {
+            dragging = false;
+        }, { passive: true });
+    })();
 
     const backdrop = document.querySelector('[data-bottom-sheet-backdrop]');
     const sheet = document.querySelector('[data-bottom-sheet]');
