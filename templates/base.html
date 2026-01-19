@@ -410,12 +410,6 @@
                 </div>
                 <span class="text-[11px] font-medium{% if active_page == 'vault' %} text-indigo-700{% else %} text-slate-500 group-hover:text-slate-700{% endif %}">Vault</span>
             </a>
-            <a href="{{ url_for('exams') }}" class="flex flex-col items-center gap-1 group">
-                <div class="w-12 h-12 rounded-xl flex items-center justify-center{% if active_page == 'exams' %} bg-indigo-50 text-indigo-600{% else %} bg-slate-50 text-slate-600{% endif %}">
-                    <span class="iconify text-xl" data-icon="{% if active_page == 'exams' %}solar:pen-2-bold{% else %}solar:pen-2-outline{% endif %}"></span>
-                </div>
-                <span class="text-[11px] font-medium{% if active_page == 'exams' %} text-indigo-700{% else %} text-slate-500 group-hover:text-slate-700{% endif %}">Exams</span>
-            </a>
             <a href="{{ url_for('profile') }}" class="flex flex-col items-center gap-1 group">
                 <div class="w-12 h-12 rounded-xl flex items-center justify-center{% if active_page == 'profile' %} bg-indigo-50 text-indigo-600{% else %} bg-slate-50 text-slate-600{% endif %}">
                     <span class="iconify text-xl" data-icon="{% if active_page == 'profile' %}solar:user-bold{% else %}solar:user-outline{% endif %}"></span>

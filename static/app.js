@@ -919,43 +919,287 @@ function initScheduleCalendarSheet() {
         return;
     }
 
-    // Month swipe navigation (left/right): one month per gesture with lockout.
-    (function initMonthSwipeNav() {
-        const viewYear = Number(calendarRoot.dataset.viewYear || 0);
-        const viewMonth = Number(calendarRoot.dataset.viewMonth || 0);
-        if (!Number.isFinite(viewYear) || !Number.isFinite(viewMonth) || viewYear <= 0 || viewMonth <= 0) {
+    // Smooth month swipe navigation (left/right) without full page reload.
+    (function initMonthCarousel() {
+        const apiUrl = (calendarRoot.dataset.apiMonthUrl || '').trim();
+        if (!apiUrl) {
             return;
         }
+
+        const initialYear = Number(calendarRoot.dataset.viewYear || 0);
+        const initialMonth = Number(calendarRoot.dataset.viewMonth || 0);
+        if (!Number.isFinite(initialYear) || !Number.isFinite(initialMonth) || initialYear <= 0 || initialMonth <= 0) {
+            return;
+        }
+
+        const monthLabelEl = calendarRoot.querySelector('[data-cal-month-label]');
+        const gridEl = calendarRoot.querySelector('[data-cal-grid]');
+        if (!monthLabelEl || !gridEl) {
+            return;
+        }
+
+        const todayDate = String(calendarRoot.dataset.todayDate || '').trim();
+
+        function keyFor(y, m) {
+            return `${y}-${String(m).padStart(2, '0')}`;
+        }
+
+        function addMonths(y, m, delta) {
+            const dt = new Date(y, m - 1, 1);
+            dt.setMonth(dt.getMonth() + delta);
+            return { y: dt.getFullYear(), m: dt.getMonth() + 1 };
+        }
+
+        const cache = new Map();
+        let current = { y: initialYear, m: initialMonth };
+        let transitioning = false;
+
+        async function fetchMonth(y, m) {
+            const k = keyFor(y, m);
+            if (cache.has(k)) {
+                return cache.get(k);
+            }
+            const url = new URL(apiUrl, window.location.origin);
+            url.searchParams.set('year', String(y));
+            url.searchParams.set('month', String(m));
+            const res = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            if (!data || !data.ok) {
+                throw new Error('Month fetch failed');
+            }
+            cache.set(k, data);
+            // Keep cache from growing without bounds.
+            if (cache.size > 9) {
+                const firstKey = cache.keys().next().value;
+                cache.delete(firstKey);
+            }
+            return data;
+        }
+
+        function esc(s) {
+            return String(s)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        function renderGrid(data) {
+            const weeks = Array.isArray(data.calendar_weeks) ? data.calendar_weeks : [];
+            const itemsByDate = data.month_items_by_date || {};
+            const eventsByDate = data.schedule_by_date || {};
+
+            let html = '';
+            for (const week of weeks) {
+                for (const cell of week) {
+                    const dateKey = String(cell.date || '');
+                    const day = Number(cell.day || 0);
+                    const inMonth = Boolean(cell.in_month);
+                    const items = itemsByDate[dateKey] || [];
+                    const events = eventsByDate[dateKey] || [];
+                    const hasAny = (Array.isArray(items) && items.length) || (Array.isArray(events) && events.length);
+                    const isToday = todayDate && dateKey === todayDate;
+
+                    const cls = [
+                        'aspect-square',
+                        'rounded-xl',
+                        'border',
+                        'border-slate-200',
+                        'bg-white',
+                        'hover:bg-slate-50',
+                        'transition-all',
+                        'flex',
+                        'flex-col',
+                        'items-center',
+                        'justify-center',
+                        'relative',
+                    ];
+                    if (isToday) {
+                        cls.push('border-indigo-300', 'bg-indigo-50', 'shadow-sm');
+                    }
+                    if (!inMonth) {
+                        cls.push('opacity-40');
+                    }
+
+                    const dayCls = ['text-sm', 'font-semibold', 'text-slate-900'];
+                    if (isToday) {
+                        dayCls.push('text-indigo-700');
+                    }
+
+                    html += `<button type="button" class="${cls.join(' ')}" data-cal-date="${esc(dateKey)}" data-in-month="${inMonth ? 1 : 0}" data-items="${esc(JSON.stringify(items))}" data-events="${esc(JSON.stringify(events))}">`;
+                    html += `<span class="${dayCls.join(' ')}">${esc(day)}</span>`;
+                    if (hasAny) {
+                        html += '<span class="absolute bottom-2 w-2 h-2 rounded-full bg-indigo-500"></span>';
+                    }
+                    html += '</button>';
+                }
+            }
+            return html;
+        }
+
+        async function preloadAdjacent() {
+            const prev = addMonths(current.y, current.m, -1);
+            const next = addMonths(current.y, current.m, 1);
+            try {
+                await Promise.allSettled([
+                    fetchMonth(prev.y, prev.m),
+                    fetchMonth(current.y, current.m),
+                    fetchMonth(next.y, next.m),
+                ]);
+            } catch {
+                // ignore
+            }
+        }
+
+        async function swapMonth(delta) {
+            if (transitioning) {
+                return;
+            }
+            transitioning = true;
+
+            const from = { ...current };
+            const to = addMonths(current.y, current.m, delta);
+            const fromHtml = gridEl.innerHTML;
+
+            let toData;
+            try {
+                toData = await fetchMonth(to.y, to.m);
+            } catch {
+                transitioning = false;
+                return;
+            }
+
+            const fromData = cache.get(keyFor(from.y, from.m));
+            if (!fromData) {
+                // Current month data might not be cached yet (initial load). Use existing DOM as the
+                // "from" state so we can still animate smoothly.
+                const track = document.createElement('div');
+                track.style.display = 'flex';
+                track.style.width = '300%';
+                track.style.transform = 'translateX(-33.3333%)';
+                track.style.transition = 'transform 180ms ease-out';
+
+                const left = document.createElement('div');
+                left.style.width = '33.3333%';
+                left.style.flex = '0 0 33.3333%';
+
+                const mid = document.createElement('div');
+                mid.style.width = '33.3333%';
+                mid.style.flex = '0 0 33.3333%';
+
+                const right = document.createElement('div');
+                right.style.width = '33.3333%';
+                right.style.flex = '0 0 33.3333%';
+
+                if (delta > 0) {
+                    left.innerHTML = fromHtml;
+                    mid.innerHTML = renderGrid(toData);
+                    right.innerHTML = '';
+                } else {
+                    left.innerHTML = '';
+                    mid.innerHTML = renderGrid(toData);
+                    right.innerHTML = fromHtml;
+                }
+
+                track.appendChild(left);
+                track.appendChild(mid);
+                track.appendChild(right);
+
+                gridEl.innerHTML = '';
+                gridEl.style.overflow = 'hidden';
+                gridEl.appendChild(track);
+
+                window.requestAnimationFrame(() => {
+                    track.style.transform = delta > 0 ? 'translateX(-66.6666%)' : 'translateX(0%)';
+                });
+
+                window.setTimeout(() => {
+                    current = to;
+                    monthLabelEl.textContent = toData.month_label || monthLabelEl.textContent;
+                    gridEl.style.overflow = '';
+                    gridEl.innerHTML = renderGrid(toData);
+                    calendarRoot.dataset.viewYear = String(toData.view_year);
+                    calendarRoot.dataset.viewMonth = String(toData.view_month);
+                    transitioning = false;
+                    preloadAdjacent();
+                }, 220);
+                return;
+            }
+
+            // Build a 3-panel track: prev/current/next
+            const track = document.createElement('div');
+            track.style.display = 'flex';
+            track.style.width = '300%';
+            track.style.transform = 'translateX(-33.3333%)';
+            track.style.transition = 'transform 180ms ease-out';
+
+            const left = document.createElement('div');
+            left.style.width = '33.3333%';
+            left.style.flex = '0 0 33.3333%';
+
+            const mid = document.createElement('div');
+            mid.style.width = '33.3333%';
+            mid.style.flex = '0 0 33.3333%';
+
+            const right = document.createElement('div');
+            right.style.width = '33.3333%';
+            right.style.flex = '0 0 33.3333%';
+
+            if (delta > 0) {
+                left.innerHTML = renderGrid(fromData);
+                mid.innerHTML = renderGrid(toData);
+                right.innerHTML = '';
+            } else {
+                left.innerHTML = '';
+                mid.innerHTML = renderGrid(toData);
+                right.innerHTML = renderGrid(fromData);
+            }
+
+            track.appendChild(left);
+            track.appendChild(mid);
+            track.appendChild(right);
+
+            // Replace grid with track temporarily
+            gridEl.innerHTML = '';
+            gridEl.style.overflow = 'hidden';
+            gridEl.appendChild(track);
+
+            // Animate
+            window.requestAnimationFrame(() => {
+                track.style.transform = delta > 0 ? 'translateX(-66.6666%)' : 'translateX(0%)';
+            });
+
+            window.setTimeout(() => {
+                // Commit new month
+                current = to;
+                monthLabelEl.textContent = toData.month_label || monthLabelEl.textContent;
+                gridEl.style.overflow = '';
+                gridEl.innerHTML = renderGrid(toData);
+                calendarRoot.dataset.viewYear = String(toData.view_year);
+                calendarRoot.dataset.viewMonth = String(toData.view_month);
+                transitioning = false;
+                preloadAdjacent();
+            }, 220);
+        }
+
+        // Kick off background preload and fetch current month from API
+        fetchMonth(initialYear, initialMonth)
+            .then((data) => {
+                monthLabelEl.textContent = data.month_label || monthLabelEl.textContent;
+                gridEl.innerHTML = renderGrid(data);
+            })
+            .catch(() => {
+                // ignore
+            })
+            .finally(() => {
+                preloadAdjacent();
+            });
 
         let startX = 0;
         let startY = 0;
         let dragging = false;
         let consumed = false;
-        let lock = false;
-
-        function lockTemporarily() {
-            lock = true;
-            window.setTimeout(() => {
-                lock = false;
-            }, 450);
-        }
-
-        function goToMonth(delta) {
-            if (lock) {
-                return;
-            }
-            lockTemporarily();
-
-            const base = new Date(viewYear, viewMonth - 1, 1);
-            base.setMonth(base.getMonth() + delta);
-            const y = base.getFullYear();
-            const m = base.getMonth() + 1;
-
-            const url = new URL(window.location.href);
-            url.searchParams.set('year', String(y));
-            url.searchParams.set('month', String(m));
-            window.location.href = url.toString();
-        }
 
         calendarRoot.addEventListener('touchstart', (e) => {
             if (!e.touches || !e.touches[0]) {
@@ -968,7 +1212,7 @@ function initScheduleCalendarSheet() {
         }, { passive: true });
 
         calendarRoot.addEventListener('touchmove', (e) => {
-            if (!dragging || consumed || lock || !e.touches || !e.touches[0]) {
+            if (!dragging || consumed || transitioning || !e.touches || !e.touches[0]) {
                 return;
             }
             const dx = e.touches[0].clientX - startX;
@@ -979,7 +1223,7 @@ function initScheduleCalendarSheet() {
             if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 80) {
                 consumed = true;
                 // Swipe left -> next month, swipe right -> previous month
-                goToMonth(dx < 0 ? 1 : -1);
+                swapMonth(dx < 0 ? 1 : -1);
             }
         }, { passive: false });
 
@@ -1135,14 +1379,16 @@ function initScheduleCalendarSheet() {
         }
     }
 
-    calendarRoot.querySelectorAll('[data-cal-date]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            const dateStr = btn.dataset.calDate;
-            const items = btn.dataset.items ? JSON.parse(btn.dataset.items) : [];
-            const events = btn.dataset.events ? JSON.parse(btn.dataset.events) : [];
-            renderForDate(dateStr, items, events);
-            openSheet();
-        });
+    calendarRoot.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest('[data-cal-date]') : null;
+        if (!btn || !calendarRoot.contains(btn)) {
+            return;
+        }
+        const dateStr = btn.dataset.calDate;
+        const items = btn.dataset.items ? JSON.parse(btn.dataset.items) : [];
+        const events = btn.dataset.events ? JSON.parse(btn.dataset.events) : [];
+        renderForDate(dateStr, items, events);
+        openSheet();
     });
 
     closeBtn.addEventListener('click', closeSheet);

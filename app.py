@@ -3927,6 +3927,108 @@ def faculty_schedules():
     )
 
 
+@app.get("/api/faculty/schedules/month")
+@faculty_approved_required
+def api_faculty_schedules_month():
+    db = get_db()
+    ensure_schedule_schema(db)
+    ensure_faculty_weekly_timetable_schema(db)
+
+    fid = get_current_faculty_id()
+    faculty_user = db.execute("SELECT * FROM faculty_users WHERE id = ?", (int(fid),)).fetchone()
+    if not faculty_user:
+        session.pop("faculty_user_id", None)
+        return jsonify({"ok": False, "error": "Not logged in"}), 401
+
+    schedule_id = 1
+
+    today = datetime.now()
+    try:
+        view_year = int(request.args.get("year") or today.year)
+    except Exception:
+        view_year = today.year
+    try:
+        view_month = int(request.args.get("month") or today.month)
+    except Exception:
+        view_month = today.month
+    if view_month < 1 or view_month > 12:
+        view_month = today.month
+
+    view_dt = datetime(view_year, view_month, 1)
+    month_start = f"{view_dt.year:04d}-{view_dt.month:02d}-01"
+    last_day = calendar.monthrange(view_dt.year, view_dt.month)[1]
+    month_end = f"{view_dt.year:04d}-{view_dt.month:02d}-{last_day:02d}"
+
+    month_items = db.execute(
+        """
+        SELECT * FROM calendar_items
+        WHERE date(item_date) >= date(?) AND date(item_date) <= date(?)
+        ORDER BY date(item_date) ASC
+        """,
+        (month_start, month_end),
+    ).fetchall()
+
+    month_schedule_events = db.execute(
+        """
+        SELECT * FROM schedules
+        WHERE date(start_at) >= date(?) AND date(start_at) <= date(?)
+          AND schedule_id = ?
+        ORDER BY datetime(start_at) ASC
+        """,
+        (month_start, month_end, int(schedule_id)),
+    ).fetchall()
+
+    calendar_weeks = []
+    cal = calendar.Calendar(firstweekday=0)
+    for week in cal.monthdatescalendar(view_dt.year, view_dt.month):
+        calendar_weeks.append(
+            [
+                {
+                    "date": d.isoformat(),
+                    "day": d.day,
+                    "in_month": d.month == view_dt.month,
+                }
+                for d in week
+            ]
+        )
+
+    month_items_by_date: dict[str, list[dict]] = {}
+    for m in month_items:
+        key = m["item_date"]
+        month_items_by_date.setdefault(key, []).append(
+            {
+                "type": m["item_type"],
+                "title": m["title"],
+                "description": m["description"],
+            }
+        )
+
+    schedule_by_date: dict[str, list[dict]] = {}
+    for e in month_schedule_events:
+        key = str(e["start_at"])[:10]
+        schedule_by_date.setdefault(key, []).append(
+            {
+                "title": e["title"],
+                "location": e["location"],
+                "start_at": e["start_at"],
+                "end_at": e["end_at"],
+            }
+        )
+
+    return jsonify(
+        {
+            "ok": True,
+            "view_year": int(view_dt.year),
+            "view_month": int(view_dt.month),
+            "month_label": view_dt.strftime("%B %Y"),
+            "today_date": today.date().isoformat(),
+            "calendar_weeks": calendar_weeks,
+            "month_items_by_date": month_items_by_date,
+            "schedule_by_date": schedule_by_date,
+        }
+    )
+
+
 @app.get("/faculty/resources")
 @faculty_approved_required
 def faculty_resources():
@@ -7942,6 +8044,102 @@ def schedules():
         month_items_by_date=month_items_by_date,
         schedule_by_date=schedule_by_date,
         timetable_for_popup=timetable_for_popup,
+    )
+
+
+@app.get("/api/schedules/month")
+@login_required
+def api_schedules_month():
+    db = get_db()
+    sid = get_current_student_id()
+    ensure_schedule_schema(db)
+    student = db.execute("SELECT * FROM students WHERE id = ?", (sid,)).fetchone()
+    schedule_id = int(student["schedule_id"] or 1) if student and ("schedule_id" in student.keys()) else 1
+
+    today = datetime.now()
+    try:
+        view_year = int(request.args.get("year") or today.year)
+    except Exception:
+        view_year = today.year
+    try:
+        view_month = int(request.args.get("month") or today.month)
+    except Exception:
+        view_month = today.month
+    if view_month < 1 or view_month > 12:
+        view_month = today.month
+
+    view_dt = datetime(view_year, view_month, 1)
+    month_start = f"{view_dt.year:04d}-{view_dt.month:02d}-01"
+    last_day = calendar.monthrange(view_dt.year, view_dt.month)[1]
+    month_end = f"{view_dt.year:04d}-{view_dt.month:02d}-{last_day:02d}"
+
+    month_items = db.execute(
+        """
+        SELECT * FROM calendar_items
+        WHERE date(item_date) >= date(?) AND date(item_date) <= date(?)
+        ORDER BY date(item_date) ASC
+        """,
+        (month_start, month_end),
+    ).fetchall()
+
+    month_schedule_events = db.execute(
+        """
+        SELECT * FROM schedules
+        WHERE date(start_at) >= date(?) AND date(start_at) <= date(?)
+          AND schedule_id = ?
+        ORDER BY datetime(start_at) ASC
+        """,
+        (month_start, month_end, int(schedule_id)),
+    ).fetchall()
+
+    calendar_weeks = []
+    cal = calendar.Calendar(firstweekday=0)
+    for week in cal.monthdatescalendar(view_dt.year, view_dt.month):
+        calendar_weeks.append(
+            [
+                {
+                    "date": d.isoformat(),
+                    "day": d.day,
+                    "in_month": d.month == view_dt.month,
+                }
+                for d in week
+            ]
+        )
+
+    month_items_by_date: dict[str, list[dict]] = {}
+    for m in month_items:
+        key = m["item_date"]
+        month_items_by_date.setdefault(key, []).append(
+            {
+                "type": m["item_type"],
+                "title": m["title"],
+                "description": m["description"],
+            }
+        )
+
+    schedule_by_date: dict[str, list[dict]] = {}
+    for e in month_schedule_events:
+        key = str(e["start_at"])[:10]
+        schedule_by_date.setdefault(key, []).append(
+            {
+                "title": e["title"],
+                "location": e["location"],
+                "start_at": e["start_at"],
+                "end_at": e["end_at"],
+            }
+        )
+
+    return jsonify(
+        {
+            "ok": True,
+            "view_year": int(view_dt.year),
+            "view_month": int(view_dt.month),
+            "month_label": view_dt.strftime("%B %Y"),
+            "today_date": today.date().isoformat(),
+            "calendar_weeks": calendar_weeks,
+            "month_items_by_date": month_items_by_date,
+            "schedule_by_date": schedule_by_date,
+        }
     )
 
 
