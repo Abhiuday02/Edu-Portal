@@ -47,7 +47,7 @@
                                                             <p class="text-sm font-semibold text-slate-900">{{ c.subject }}</p>
                                                             <p class="text-xs text-slate-500 mt-1">{{ c.room }} · {{ c.instructor }}</p>
                                                         </div>
-                                                        <span class="minimal-badge bg-slate-100 text-slate-700">{{ c.start_time }}–{{ c.end_time }}</span>
+                                                        <span class="minimal-badge bg-slate-100 text-slate-700">{{ c.start_time|time12 }}–{{ c.end_time|time12 }}</span>
                                                     </div>
                                                 </div>
                                             {% endfor %}

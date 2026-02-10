@@ -12,6 +12,7 @@ import time
 from urllib.parse import quote
 import uuid
 import json
+import io
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -30,6 +31,26 @@ socketio = SocketIO(
     cors_allowed_origins="*",
 )
 CHAT_ROOM = "group_chat"
+
+
+@app.template_filter("time12")
+def _time12_filter(value: str) -> str:
+    raw = (value or "").strip()
+    m = re.match(r"^(\d{1,2}):(\d{2})$", raw)
+    if not m:
+        return raw
+    try:
+        hh = int(m.group(1))
+        mm = int(m.group(2))
+    except Exception:
+        return raw
+    if hh < 0 or hh > 23 or mm < 0 or mm > 59:
+        return raw
+    ampm = "AM" if hh < 12 else "PM"
+    hh12 = hh % 12
+    if hh12 == 0:
+        hh12 = 12
+    return f"{hh12}:{mm:02d} {ampm}"
 
 DB_PATH = Path(__file__).with_name("eduportal.db")
 
@@ -4999,6 +5020,8 @@ def admin_news_quick_create():
 def admin_schedules():
     db = get_db()
 
+    ensure_schedule_schema(db)
+
     groups = db.execute("SELECT * FROM schedule_groups ORDER BY id ASC").fetchall()
     selected_raw = (request.args.get("schedule_id") or "").strip()
     selected_id = None
@@ -5034,8 +5057,272 @@ def admin_schedules():
         timetable_rows=timetable_rows,
         schedule_groups=groups,
         selected_schedule_id=int(selected_id),
-        error=None,
+        error=(request.args.get("error") or "").strip() or None,
+        success=(request.args.get("success") or "").strip() or None,
     )
+
+
+def _dow_from_name(day: str) -> int | None:
+    d = (day or "").strip().lower()
+    mapping = {
+        "monday": 0,
+        "mon": 0,
+        "tuesday": 1,
+        "tue": 1,
+        "wednesday": 2,
+        "wed": 2,
+        "thursday": 3,
+        "thu": 3,
+        "friday": 4,
+        "fri": 4,
+        "saturday": 5,
+        "sat": 5,
+        "sunday": 6,
+        "sun": 6,
+    }
+    return mapping.get(d)
+
+
+def _dow_to_name(i: int) -> str:
+    names = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    try:
+        return names[int(i)]
+    except Exception:
+        return "monday"
+
+
+def _parse_time_range(s: str) -> tuple[str, str] | None:
+    raw = (s or "").strip()
+    if not raw:
+        return None
+    m = re.match(r"^\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\s*$", raw)
+    if not m:
+        return None
+    return (m.group(1), m.group(2))
+
+
+def _ddmmyyyy_to_iso(s: str) -> str | None:
+    raw = (s or "").strip()
+    if not raw:
+        return None
+    m = re.match(r"^(\d{2})-(\d{2})-(\d{4})$", raw)
+    if not m:
+        return None
+    dd, mm, yyyy = m.group(1), m.group(2), m.group(3)
+    return f"{yyyy}-{mm}-{dd}"
+
+
+def _iso_to_ddmmyyyy(s: str) -> str:
+    raw = (s or "").strip()
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", raw)
+    if not m:
+        return raw
+    yyyy, mm, dd = m.group(1), m.group(2), m.group(3)
+    return f"{dd}-{mm}-{yyyy}"
+
+
+@app.get("/admin/schedules/export")
+@admin_login_required
+def admin_schedules_export():
+    db = get_db()
+    ensure_schedule_schema(db)
+
+    groups = db.execute("SELECT * FROM schedule_groups ORDER BY id ASC").fetchall()
+    group_ids = [int(g["id"]) for g in groups]
+    tt_rows = []
+    if group_ids:
+        placeholders = ",".join(["?"] * len(group_ids))
+        tt_rows = db.execute(
+            f"""
+            SELECT * FROM weekly_timetable
+            WHERE schedule_id IN ({placeholders})
+            ORDER BY schedule_id ASC, day_of_week ASC, time(start_time) ASC
+            """,
+            tuple(group_ids),
+        ).fetchall()
+
+    tt_by_group: dict[int, list] = {}
+    for r in tt_rows:
+        sid = int(r["schedule_id"] or 1)
+        tt_by_group.setdefault(sid, []).append(r)
+
+    weekly_schedules = []
+    for g in groups:
+        gid = int(g["id"])
+        schedules = []
+        for r in tt_by_group.get(gid, []):
+            schedules.append(
+                {
+                    "day": _dow_to_name(int(r["day_of_week"])),
+                    "time": f"{r['start_time']} - {r['end_time']}",
+                    "subject": r["subject"],
+                    "teacher": r["instructor"],
+                    "room": r["room"],
+                }
+            )
+        weekly_schedules.append(
+            {
+                "group_name": g["name"],
+                "department": g["department"],
+                "program": g["program"],
+                "semester": g["semester"],
+                "schedules": schedules,
+            }
+        )
+
+    month_items = db.execute(
+        "SELECT * FROM calendar_items ORDER BY date(item_date) ASC, id ASC"
+    ).fetchall()
+    monthly_schedules = []
+    for it in month_items:
+        monthly_schedules.append(
+            {
+                "date": _iso_to_ddmmyyyy(str(it["item_date"])),
+                "type": (str(it["item_type"] or "").strip().lower() or "event"),
+                "title": it["title"],
+                "description": it["description"],
+            }
+        )
+
+    payload = {"weekly_schedules": weekly_schedules, "monthly_schedules": monthly_schedules}
+    data = json.dumps(payload, indent=4, ensure_ascii=False)
+    bio = io.BytesIO(data.encode("utf-8"))
+    bio.seek(0)
+    return send_file(
+        bio,
+        as_attachment=True,
+        download_name="schedules_export.json",
+        mimetype="application/json; charset=utf-8",
+    )
+
+
+@app.post("/admin/schedules/import")
+@admin_login_required
+def admin_schedules_import():
+    upload = request.files.get("schedule_json")
+    if upload is None or not (upload.filename or "").strip():
+        return redirect(url_for("admin_schedules", error="Please choose a JSON file to import."))
+
+    replace_weekly = (request.form.get("replace_weekly") or "").strip() == "1"
+    import_monthly = (request.form.get("import_monthly") or "").strip() == "1"
+
+    try:
+        raw = upload.read()
+        text = raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else str(raw)
+        payload = json.loads(text)
+    except Exception:
+        return redirect(url_for("admin_schedules", error="Invalid JSON file."))
+
+    weekly = payload.get("weekly_schedules")
+    monthly = payload.get("monthly_schedules")
+    if weekly is not None and not isinstance(weekly, list):
+        return redirect(url_for("admin_schedules", error="weekly_schedules must be a list."))
+    if monthly is not None and not isinstance(monthly, list):
+        return redirect(url_for("admin_schedules", error="monthly_schedules must be a list."))
+
+    db = get_db()
+    ensure_schedule_schema(db)
+
+    imported_groups = 0
+    imported_rows = 0
+    imported_monthly = 0
+
+    groups_by_name = {
+        str(r["name"]).strip().lower(): r
+        for r in db.execute("SELECT * FROM schedule_groups").fetchall()
+    }
+
+    if isinstance(weekly, list):
+        for g in weekly:
+            if not isinstance(g, dict):
+                continue
+            group_name = (g.get("group_name") or "").strip()
+            if not group_name:
+                continue
+            department = (g.get("department") or "").strip() or None
+            program = (g.get("program") or "").strip() or None
+            sem_raw = g.get("semester")
+            semester = None
+            if sem_raw is not None and str(sem_raw).strip() != "":
+                try:
+                    semester = int(sem_raw)
+                except Exception:
+                    semester = None
+
+            key = group_name.lower()
+            existing = groups_by_name.get(key)
+            if existing:
+                schedule_id = int(existing["id"])
+                db.execute(
+                    "UPDATE schedule_groups SET name = ?, program = ?, department = ?, semester = ? WHERE id = ?",
+                    (group_name, program, department, semester, int(schedule_id)),
+                )
+            else:
+                now = datetime.utcnow().isoformat(timespec="seconds")
+                db.execute(
+                    """
+                    INSERT INTO schedule_groups (name, program, department, semester, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (group_name, program, department, semester, now),
+                )
+                schedule_id = int(db.execute("SELECT last_insert_rowid()").fetchone()[0])
+                groups_by_name[key] = db.execute(
+                    "SELECT * FROM schedule_groups WHERE id = ?", (int(schedule_id),)
+                ).fetchone()
+                imported_groups += 1
+
+            if replace_weekly:
+                db.execute("DELETE FROM weekly_timetable WHERE schedule_id = ?", (int(schedule_id),))
+
+            rows = g.get("schedules")
+            if not isinstance(rows, list):
+                continue
+            for r in rows:
+                if not isinstance(r, dict):
+                    continue
+                day = _dow_from_name(r.get("day") or "")
+                t = _parse_time_range(r.get("time") or "")
+                subject = (r.get("subject") or "").strip()
+                teacher = (r.get("teacher") or "").strip()
+                room = (r.get("room") or "").strip()
+                if day is None or t is None or not subject or not teacher or not room:
+                    continue
+                start_time, end_time = t
+                db.execute(
+                    """
+                    INSERT INTO weekly_timetable (schedule_id, day_of_week, start_time, end_time, subject, room, instructor)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (int(schedule_id), int(day), start_time, end_time, subject, room, teacher),
+                )
+                imported_rows += 1
+
+    if import_monthly and isinstance(monthly, list):
+        for it in monthly:
+            if not isinstance(it, dict):
+                continue
+            date_iso = _ddmmyyyy_to_iso(it.get("date") or "")
+            typ = (it.get("type") or "").strip().upper()
+            title = (it.get("title") or "").strip()
+            desc = (it.get("description") or "").strip() or None
+            if not date_iso or not title:
+                continue
+            if typ not in {"HOLIDAY", "EVENT", "EXAM", "NOTICE"}:
+                typ = "HOLIDAY" if typ.lower() == "holiday" else "EVENT"
+            db.execute(
+                "INSERT INTO calendar_items (item_date, item_type, title, description) VALUES (?, ?, ?, ?)",
+                (date_iso, typ, title, desc),
+            )
+            imported_monthly += 1
+
+    db.commit()
+    msg = f"Imported {imported_rows} weekly rows"
+    if imported_groups:
+        msg += f" and {imported_groups} new groups"
+    if import_monthly:
+        msg += f"; imported {imported_monthly} monthly items"
+    return redirect(url_for("admin_schedules", success=msg))
 
 
 @app.post("/admin/calendar-items/new")

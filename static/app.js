@@ -1304,6 +1304,25 @@ function initScheduleCalendarSheet() {
             .replaceAll("'", '&#39;');
     }
 
+    function to12h(t) {
+        const raw = String(t || '').trim();
+        const m = raw.match(/^(\d{1,2}):(\d{2})$/);
+        if (!m) {
+            return raw;
+        }
+        const hh = Number(m[1]);
+        const mm = Number(m[2]);
+        if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+            return raw;
+        }
+        const ampm = hh < 12 ? 'AM' : 'PM';
+        let hh12 = hh % 12;
+        if (hh12 === 0) {
+            hh12 = 12;
+        }
+        return `${hh12}:${String(mm).padStart(2, '0')} ${ampm}`;
+    }
+
     function buildSection(label, html) {
         const wrapper = document.createElement('div');
         wrapper.className = 'p-4 rounded-xl border border-slate-200 bg-white';
@@ -1330,7 +1349,7 @@ function initScheduleCalendarSheet() {
                                 <p class="text-sm font-semibold text-slate-900">${esc(c.subject)}</p>
                                 <p class="text-xs text-slate-500 mt-1">${esc(c.room)} - ${esc(c.instructor)}</p>
                             </div>
-                            <span class="minimal-badge bg-slate-100 text-slate-700">${esc(c.start_time)}-${esc(c.end_time)}</span>
+                            <span class="minimal-badge bg-slate-100 text-slate-700">${esc(to12h(c.start_time))}-${esc(to12h(c.end_time))}</span>
                         </div>
                     </div>`
                 ))
