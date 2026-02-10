@@ -5249,6 +5249,7 @@ def admin_schedules_import():
         return redirect(url_for("admin_schedules", error="Please choose a JSON file to import."))
 
     replace_weekly = (request.form.get("replace_weekly") or "").strip() == "1"
+    delete_missing_groups = (request.form.get("delete_missing_groups") or "").strip() == "1"
     import_monthly = (request.form.get("import_monthly") or "").strip() == "1"
 
     try:
@@ -5271,6 +5272,7 @@ def admin_schedules_import():
     imported_groups = 0
     imported_rows = 0
     imported_monthly = 0
+    imported_group_names: set[str] = set()
 
     groups_by_name = {
         str(r["name"]).strip().lower(): r
@@ -5284,6 +5286,7 @@ def admin_schedules_import():
             group_name = (g.get("group_name") or "").strip()
             if not group_name:
                 continue
+            imported_group_names.add(group_name.strip().lower())
             department = (g.get("department") or "").strip() or None
             program = (g.get("program") or "").strip() or None
             sem_raw = g.get("semester")
@@ -5342,6 +5345,23 @@ def admin_schedules_import():
                     (int(schedule_id), int(day), start_time, end_time, subject, room, teacher),
                 )
                 imported_rows += 1
+
+    if replace_weekly and delete_missing_groups and imported_group_names:
+        groups = db.execute("SELECT id, name FROM schedule_groups").fetchall()
+        for row in groups:
+            gid = int(row["id"])
+            if gid == 1:
+                continue
+            name_key = (str(row["name"] or "").strip().lower())
+            if not name_key or name_key in imported_group_names:
+                continue
+
+            try:
+                db.execute("UPDATE students SET schedule_id = 1 WHERE schedule_id = ?", (gid,))
+            except Exception:
+                pass
+            db.execute("DELETE FROM weekly_timetable WHERE schedule_id = ?", (gid,))
+            db.execute("DELETE FROM schedule_groups WHERE id = ?", (gid,))
 
     if import_monthly and isinstance(monthly, list):
         for it in monthly:
@@ -5461,6 +5481,37 @@ def admin_schedule_group_update(group_id: int):
     db.execute("UPDATE schedule_groups SET name = ? WHERE id = ?", (name, int(group_id)))
     db.commit()
     return redirect(url_for("admin_schedules", schedule_id=int(schedule_id)))
+
+
+@app.post("/admin/schedules/groups/<int:group_id>/delete")
+@admin_login_required
+def admin_schedule_group_delete(group_id: int):
+    schedule_id_raw = (request.form.get("schedule_id") or request.args.get("schedule_id") or "").strip()
+    try:
+        schedule_id = int(schedule_id_raw)
+    except Exception:
+        schedule_id = 1
+
+    gid = int(group_id)
+    if gid <= 0:
+        return redirect(url_for("admin_schedules", schedule_id=int(schedule_id)))
+
+    db = get_db()
+    ensure_schedule_schema(db)
+    if gid == 1:
+        return redirect(url_for("admin_schedules", schedule_id=1, error="Default schedule group cannot be deleted."))
+
+    try:
+        db.execute("UPDATE students SET schedule_id = 1 WHERE schedule_id = ?", (gid,))
+    except Exception:
+        pass
+    db.execute("DELETE FROM weekly_timetable WHERE schedule_id = ?", (gid,))
+    db.execute("DELETE FROM schedule_groups WHERE id = ?", (gid,))
+    db.commit()
+
+    next_group = db.execute("SELECT id FROM schedule_groups ORDER BY id ASC LIMIT 1").fetchone()
+    next_id = int(next_group["id"]) if next_group else 1
+    return redirect(url_for("admin_schedules", schedule_id=next_id, success="Schedule group deleted."))
 
 
 @app.post("/admin/schedules/events/new")

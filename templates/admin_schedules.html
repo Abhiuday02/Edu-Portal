@@ -36,6 +36,10 @@
             Replace weekly timetable rows for imported groups
         </label>
         <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" name="delete_missing_groups" value="1" class="rounded border-slate-300" />
+            Delete schedule groups not present in the JSON (only when replacing weekly)
+        </label>
+        <label class="inline-flex items-center gap-2 text-sm text-slate-700">
             <input type="checkbox" name="import_monthly" value="1" class="rounded border-slate-300" />
             Import monthly schedules (events/holidays)
         </label>
@@ -173,6 +177,14 @@
                     <input type="hidden" name="schedule_id" value="{{ ns.selected_group.id }}" />
                     <input name="name" type="text" value="{{ ns.selected_group.name }}" class="admin-input flex-1" />
                     <button type="submit" class="admin-btn admin-btn-soft inline-flex items-center gap-2"><span class="iconify text-base" data-icon="solar:pen-2-outline"></span> Rename</button>
+                </form>
+
+                <form method="post" action="{{ url_for('admin_schedule_group_delete', group_id=ns.selected_group.id, schedule_id=ns.selected_group.id) }}" class="mt-2" onsubmit="return confirm('Delete this schedule group? This will delete all weekly timetable rows in this group. Students assigned to this group will be moved to Default Schedule.');">
+                    <input type="hidden" name="schedule_id" value="{{ ns.selected_group.id }}" />
+                    <button type="submit" class="admin-btn admin-btn-danger text-xs inline-flex items-center gap-2">
+                        <span class="iconify text-sm" data-icon="solar:trash-bin-trash-outline"></span>
+                        Delete Schedule Group
+                    </button>
                 </form>
             {% endif %}
 
