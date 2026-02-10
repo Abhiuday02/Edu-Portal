@@ -774,6 +774,23 @@ function initUxReveal() {
         el.classList.add('ux-reveal');
     });
 
+    function isInViewport(el) {
+        const r = el.getBoundingClientRect();
+        const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+        const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+        if (!vh || !vw) return false;
+        return r.bottom > 0 && r.right > 0 && r.top < vh * 0.95 && r.left < vw;
+    }
+
+    function revealVisible() {
+        nodes.forEach((el) => {
+            if (el.classList.contains('is-in')) return;
+            if (isInViewport(el)) {
+                el.classList.add('is-in');
+            }
+        });
+    }
+
     const io = new IntersectionObserver(
         (entries) => {
             entries.forEach((e) => {
@@ -787,6 +804,22 @@ function initUxReveal() {
     );
 
     nodes.forEach((el) => io.observe(el));
+
+    // Fallback: some layouts (tabs/scroll containers) can prevent IntersectionObserver
+    // from firing reliably; force-reveal anything that's already visible.
+    let raf = 0;
+    function scheduleReveal() {
+        if (raf) return;
+        raf = window.requestAnimationFrame(() => {
+            raf = 0;
+            revealVisible();
+        });
+    }
+
+    window.requestAnimationFrame(revealVisible);
+    window.addEventListener('resize', scheduleReveal, { passive: true });
+    document.addEventListener('scroll', scheduleReveal, true);
+    window.setTimeout(revealVisible, 800);
 }
 
 function initWeeklyTimetable() {
